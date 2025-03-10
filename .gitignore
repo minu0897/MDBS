@@ -2,3 +2,7 @@ Backend/bank_mongo/config.py
 Backend/bank_mysql/config.py
 Backend/bank_oracle/config.py
 Backend/bank_postgresql/config.py
+
+
+
+**/__pycache__/
