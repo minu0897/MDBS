@@ -1,5 +1,5 @@
 import pymysql
-from config import DB_CONFIG
+from ..config import DB_CONFIG
 
 def get_db_connection():
     """ MySQL 데이터베이스 연결 """
