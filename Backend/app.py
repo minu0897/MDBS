@@ -5,6 +5,7 @@ from bank_mysql.routes.transactions import mysql_transactions_bp
 #from common.success import generate_success_response
 
 app = Flask(__name__)
+app.json.ensure_ascii = False  # 한글 깨짐 방지
 
 # MySQL & Oracle API 엔드포인트 등록
 app.register_blueprint(mysql_transactions_bp, url_prefix="/mysql")
