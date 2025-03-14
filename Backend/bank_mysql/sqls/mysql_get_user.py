@@ -5,15 +5,15 @@ from ..db.mysql_connection import get_db_connection
 # GET
 # parms :
 # 
-def get_users():
+def mysql_get_users():
     
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT * FROM accounts")
+    cursor.execute("SELECT acc_id,balance,name,'mysql'as bank FROM accounts")
     users = cursor.fetchall()  # 조회 결과 가져오기
 
     cursor.close()
     conn.close()
     
-    return jsonify(users)  # JSON 형태로 반환
+    return users  # list형태로 반환
