@@ -2,8 +2,10 @@ from flask import Blueprint, request, jsonify
 from ..procedures.ReceivableSetting import receivablesetting_mysql
 from ..procedures.RemittanceSetting import remittancesetting_mysql
 from ..procedures.TransferSetting import transfersetting_mysql
-from ..sqls.get_user import get_users
-from ..sqls.get_user_name import get_username
+
+from ..sqls.mysql_get_user import mysql_get_users
+from ..sqls.mysql_get_user_name import mysql_get_user_name
+
 from common.error import generate_error_response
 from common.success import generate_success_response
 
@@ -36,13 +38,20 @@ def transfer_mysql():
 # GET
 @mysql_transactions_bp.route("/users", methods=["GET"])
 def get_usersf():
-    print(1111111)
-    ret = get_users()
+    ret = jsonify(mysql_get_users())
     return ret
 
 # fun : MySQL에서 사용자이름으로 사용자 데이터 조회
 # GET
 @mysql_transactions_bp.route("/user/<string:name>", methods=["GET"])
-def get_usernamef(name):
-    ret = get_username(name)
-    return ret
+def get_username(name):
+    ret = mysql_get_user_name(name)
+    if ret:
+        return jsonify(ret)
+    
+    
+    #ret = oracle_get_user_name(name)
+    #if ret:
+    #    return jsonify(ret)
+    
+    return jsonify({"error": "사용자를 찾을 수 없습니다"}), 404
