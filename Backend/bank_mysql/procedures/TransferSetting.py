@@ -1,4 +1,4 @@
-from ..db import mysql_connection
+from ..db.mysql_connection import get_db_connection
 
 def transfersetting_mysql(list_id, code):
     #이체 확정 프로시저
@@ -6,7 +6,7 @@ def transfersetting_mysql(list_id, code):
         #list_id : 이체 id
         #status  : 이체 성공/실패 값
 
-    conn = mysql_connection()
+    conn = get_db_connection()
     cursor = conn.cursor()
     try:
         #status:2 성공

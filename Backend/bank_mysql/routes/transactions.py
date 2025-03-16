@@ -13,9 +13,9 @@ from common.success import generate_success_response
 mysql_transactions_bp = Blueprint("mysql_transactions", __name__)
 
 # procedure : MySQL에서 이체 프로시저
-# GET
+# POST
 @mysql_transactions_bp.route("/receive", methods=["POST"])
-def transfer_mysql():
+def receive_mysql():
     data = request.json
     sender_id = data.get("sender_id")
     receiver_id = data.get("receiver_id")
@@ -23,17 +23,36 @@ def transfer_mysql():
 
     if not sender_id or not receiver_id or not amount:
         return generate_error_response("INVALID_REQUEST", 400)
-
-    status = receivablesetting_mysql(sender_id, receiver_id,amount)
-    
+    ret = receivablesetting_mysql(sender_id, receiver_id,amount)
+    status = ret[1]#상태값
     if status == "SUCCESS":
-        receivablesetting_mysql(receiver_id,receiver_id, amount)
         return generate_success_response("TRANSACTION_SUCCESS", 200)
-    elif status == "INSUFFICIENT_FUNDS":
+    elif status == "INSUFFICIENT_FUNDS":#잔액부족
         return generate_error_response("INSUFFICIENT_FUNDS", 400)
     else:
         return generate_error_response("INTERNAL_SERVER_ERROR", 500)
     
+# procedure : MySQL에서 이체 프로시저
+# POST
+@mysql_transactions_bp.route("/remittance", methods=["POST"])
+def remittance_mysql():
+    data = request.json
+    sender_id = data.get("sender_id")
+    receiver_id = data.get("receiver_id")
+    amount = data.get("amount")
+
+    if not sender_id or not receiver_id or not amount:
+        return generate_error_response("INVALID_REQUEST", 400)
+    ret = remittancesetting_mysql(sender_id, receiver_id,amount)
+    status = ret[1]#상태값
+    if status == "SUCCESS":
+        return generate_success_response("TRANSACTION_SUCCESS", 200)
+    elif status == "INSUFFICIENT_FUNDS":#잔액부족
+        return generate_error_response("INSUFFICIENT_FUNDS", 400)
+    else:
+        return generate_error_response("INTERNAL_SERVER_ERROR", 500)
+    
+
 # fun : MySQL에서 사용자 데이터 조회
 # GET
 @mysql_transactions_bp.route("/users", methods=["GET"])
