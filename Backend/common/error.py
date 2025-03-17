@@ -3,7 +3,8 @@ ERROR_CODES = {
     "ACCOUNT_NOT_FOUND": {"code": 1001, "message": "없는 계좌"},
     "INSUFFICIENT_FUNDS": {"code": 1002, "message": "잔액 부족"},
     "INTERNAL_SERVER_ERROR": {"code": 1003, "message": "Server Error"},
-    "DUPLICATE_TRANSACTION": {"code": 1004, "message": "이미 처리된 요청입니다."}
+    "DUPLICATE_TRANSACTION": {"code": 1004, "message": "이미 처리된 요청입니다."},
+    "DB_PROCEDURE_ERROR": {"code": 1005, "message": "DB_PROCEDURE_ERROR"}
 }
 
 def generate_error_response(error_key, http_status=400):
