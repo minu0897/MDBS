@@ -5,6 +5,8 @@ from bank_mysql.routes.transactions import mysql_transactions_bp
 from bank_mysql.sqls.mysql_get_user import mysql_get_users
 from bank_mysql.sqls.mysql_get_allbalance import mysql_get_allbalance
 from bank_mysql.sqls.mysql_get_user_name import mysql_get_user_name
+from bank_mysql.sqls.mysql_get_accountlist_id import mysql_get_accountlist_id
+from bank_mysql.sqls.mysql_get_accountlist_name import mysql_get_accountlist_name
 
 #from oracle.routes.transactions import oracle_transactions_bp
 #from common.errors import generate_error_response
@@ -50,7 +52,7 @@ def get_all_users():
 
 #  /user/<string:name> 엔드포인트: All DB에서 유저 이름으로 검색
 @app.route("/user/<string:name>", methods=["GET"])
-def get_all_usersname(name):
+def get_user_name(name):
     try:
         mysql_user = mysql_get_user_name(name)# 리스트
 
@@ -65,5 +67,35 @@ def get_all_usersname(name):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+#  /user/<string:name> 엔드포인트: 해당 이름의 이체내역조회
+@app.route("/transferlist_name/<string:name>", methods=["GET"])
+def get_accountlist_name(name):
+    try:
+        mysql_list = mysql_get_accountlist_name(name)# 리스트
+
+        if mysql_list:
+            return jsonify(mysql_list)
+        
+
+        return jsonify({"error": "사용자를 찾을 수 없습니다"}), 404
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+#  /user/<string:name> 엔드포인트: 해당 계좌번호의 이체내역조회
+@app.route("/transferlist_id/<string:acc_id>", methods=["GET"])
+def get_accountlist_id(acc_id):
+    try:
+        mysql_list = mysql_get_accountlist_id(acc_id)# 리스트
+
+        if mysql_list:
+            return jsonify(mysql_list)
+        
+
+        return jsonify({"error": "사용자를 찾을 수 없습니다"}), 404
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
