@@ -139,7 +139,7 @@ async def process_chain(session, data):
 async def main():
     async with aiohttp.ClientSession() as session:
         tasks = []
-        for i in range(100000):
+        for i in range(1000):
             # 여기서 data는 각 체인마다 생성될 데이터입니다.
             remittance=random.randint(0, dataCount)
             recive=random.randint(0, dataCount)
@@ -149,7 +149,7 @@ async def main():
             data = {
                 "sender_id": peoples[remittance], 
                 "receiver_id": peoples[recive], 
-                "amount": random.randint(0, 1000)*(10**random.randint(0, 3)),
+                "amount": random.randint(0, 1000)*(10**random.randint(1, 4)),
                 "task_id":i
             }
             tasks.append(process_chain(session, data))
