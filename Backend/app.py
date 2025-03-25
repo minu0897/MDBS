@@ -14,7 +14,13 @@ from bank_mysql.sqls.mysql_get_accountlist_name import mysql_get_accountlist_nam
 
 app = Flask(__name__)
 app.json.ensure_ascii = False  # 한글 깨짐 방지
-CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})#CORS 설정
+
+CORS(app, resources={r"/*": {#cors 설정
+    "origins": [
+        "http://localhost:3000",
+        "http://101.235.73.77:3000"
+    ]
+}})
 
 # MySQL & Oracle API 엔드포인트 등록
 app.register_blueprint(mysql_transactions_bp, url_prefix="/mysql")
