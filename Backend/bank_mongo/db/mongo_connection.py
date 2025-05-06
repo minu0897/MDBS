@@ -1,5 +1,4 @@
 from pymongo import MongoClient
-from bson import SON
 
 from ..config import DB_CONFIG
 

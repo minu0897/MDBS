@@ -6,6 +6,15 @@ import random
 import logging
 import json
 
+
+import sys
+sys.path.append('./Backend/common/config') 
+from RDGconfig import RDG_CONFIG
+from Flaskconfig import FLASK_CONFIG
+
+serverurl = FLASK_CONFIG["SERVERIP"]+":"+FLASK_CONFIG["SERVERPORT"]
+
+
 # 로그 파일과 로그 레벨 설정
 logging.basicConfig(
     filename='app.log',  # 로그 파일 이름
@@ -83,7 +92,7 @@ async def process_chain(session, data):
     # 1. 송금 API 호출
     logging.debug(f"TaskID : {data['task_id']} >>>> ===1. 송금 API 시작===")
     #ex) http://127.0.0.1:5000/mysql/remittance
-    url_remittance = "http://101.235.73.77:5000/"+remittancebank+"/remittance"
+    url_remittance = "http://serverurl/"+remittancebank+"/remittance"
     resultremittance = await call_api(session, url_remittance, data)
     if not resultremittance or resultremittance.get("success_code") != 2000:
         logging.error(f"TaskID : {data['task_id']} >>>> 송금 대기 실패 API 실패: "+json.dumps(resultremittance, ensure_ascii=False))
@@ -94,7 +103,7 @@ async def process_chain(session, data):
     # 2. 수금 API 호출
     logging.debug(f"TaskID : {data['task_id']} >>>> ===2. 수금 API 시작===")
     #ex) http://127.0.0.1:5000/mysql/receive
-    url_receive = "http://101.235.73.77:5000/"+receivebank+"/receive"
+    url_receive = "http://serverurl/"+receivebank+"/receive"
     resultreceive = await call_api(session, url_receive, data)
     if not resultreceive or resultreceive.get("success_code") != 2000:
         logging.error(f"TaskID : {data['task_id']} >>>> 수금 대기 실패 API 실패: "+json.dumps(resultreceive, ensure_ascii=False))
@@ -105,7 +114,7 @@ async def process_chain(session, data):
     # 3. 송금 확정 API
     logging.debug(f"TaskID : {data['task_id']} >>>> ===3. 송금 확정 API 시작===")
     logging.info(f" TaskID : {data['task_id']} >>>> Create ID  : {remittance_create_id}")
-    url_transfer = "http://101.235.73.77:5000/"+remittancebank+"/transfer"
+    url_transfer = "http://serverurl/"+remittancebank+"/transfer"
     create_id = {
         "list_id": remittance_create_id, 
         "status":"2"
@@ -121,7 +130,7 @@ async def process_chain(session, data):
     # 4. 수금 확정 API
     logging.debug(f"TaskID : {data['task_id']} >>>> ===4. 수금 확정 API 시작===")
     logging.info(f" TaskID : {data['task_id']} >>>> Create ID  : {receive_create_id}")
-    url_transfer = "http://101.235.73.77:5000/"+receivebank+"/transfer"
+    url_transfer = "http://serverurl/"+receivebank+"/transfer"
     create_id = {
         "list_id": receive_create_id, 
         "status":"2"
@@ -136,24 +145,37 @@ async def process_chain(session, data):
     logging.debug(f"TaskID : {data['task_id']} >>>> ===5. 이체 완료===")
     logging.debug(f"==========================================================")
 
-async def main():
-    async with aiohttp.ClientSession() as session:
-        tasks = []
-        for i in range(500000):
-            # 여기서 data는 각 체인마다 생성될 데이터입니다.
-            remittance=random.randint(0, dataCount)
-            recive=random.randint(0, dataCount)
-            while remittance == recive:
-                recive=random.randint(0, dataCount)
+async def generate_data(session, n, interval):
+    """
+    초당 n개의 데이터를 생성하는 함수
+    """
+    tasks = []
+    count = 0
+    while count < n:
+        remittance = random.randint(0, dataCount)
+        recive = random.randint(0, dataCount)
+        while remittance == recive:
+            recive = random.randint(0, dataCount)
 
-            data = {
-                "sender_id": peoples[remittance], 
-                "receiver_id": peoples[recive], 
-                "amount": random.randint(0, 1000)*(10**random.randint(1, 4)),
-                "task_id":i
-            }
-            tasks.append(process_chain(session, data))
-        await asyncio.gather(*tasks)
+        data = {
+            "sender_id": peoples[remittance],
+            "receiver_id": peoples[recive],
+            "amount": random.randint(0, 1000) * (10 ** random.randint(1, 4)),
+            "task_id": count
+        }
+        tasks.append(process_chain(session, data))
+        count += 1
+        if count % n == 0:
+            await asyncio.sleep(interval)  # interval 초 간격으로 n개씩 생성
+
+    await asyncio.gather(*tasks)
+
+async def main():
+    while True:
+        async with aiohttp.ClientSession() as session:
+            # 초당 100개의 데이터를 생성하도록 설정
+            await generate_data(session, 5, 1)  
+
 
 if __name__ == "__main__":
     with open("Data/data.csv", mode='r', encoding='utf-8') as file:
