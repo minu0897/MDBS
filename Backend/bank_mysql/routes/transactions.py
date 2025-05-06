@@ -3,12 +3,19 @@ from ..procedures.ReceivableSetting import receivablesetting_mysql
 from ..procedures.RemittanceSetting import remittancesetting_mysql
 from ..procedures.TransferSetting import transfersetting_mysql
 
-from ..sqls.mysql_get_user import mysql_get_users
-from ..sqls.mysql_get_user_name import mysql_get_user_name
+from ..querys.mysql_get_user import mysql_get_users
+from ..querys.mysql_get_user_name import mysql_get_user_name
+from ..querys.mysql_get_accountlist_name import mysql_get_accountlist_name
+from ..querys.mysql_get_accountlist_id import mysql_get_accountlist_id
 
 from common.error import generate_error_response
 from common.success import generate_success_response
 
+###############################################################################
+# program ID : transactions.py
+# 목적 : 이 프로그램에선 /mysql/ 로 들어오는 주소를 처리합니다.
+# 설명 : Data는 Mysql에서만 가져오고 처리합니다.
+###############################################################################
 
 mysql_transactions_bp = Blueprint("mysql_transactions", __name__)
 
@@ -108,3 +115,37 @@ def get_username(name):
     #    return jsonify(ret)
     
     return jsonify({"error": "사용자를 찾을 수 없습니다"}), 404
+
+
+# fun : MySQL에서 사용자이름으로 이체내역 조회
+# GET
+@mysql_transactions_bp.route("/transferlist_name/<string:name>", methods=["GET"])
+def get_transferlist_name(name):
+    try:
+        mysql_list = mysql_get_accountlist_name(name)# 리스트
+
+        if mysql_list:
+            return jsonify(mysql_list)
+        
+
+        return jsonify({"error": "사용자를 찾을 수 없습니다"}), 404
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+    
+# fun : MySQL에서 계좌번호로 이체내역 조회
+# GET
+@mysql_transactions_bp.route("/transferlist_id/<string:name>", methods=["GET"])
+def get_transferlist_id(id):
+    try:
+        mysql_list = mysql_get_accountlist_id(id)# 리스트
+
+        if mysql_list:
+            return jsonify(mysql_list)
+        
+
+        return jsonify({"error": "사용자를 찾을 수 없습니다"}), 404
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

@@ -2,15 +2,23 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 
 from bank_mysql.routes.transactions import mysql_transactions_bp
-from bank_mysql.sqls.mysql_get_user import mysql_get_users
-from bank_mysql.sqls.mysql_get_allbalance import mysql_get_allbalance
-from bank_mysql.sqls.mysql_get_user_name import mysql_get_user_name
-from bank_mysql.sqls.mysql_get_accountlist_id import mysql_get_accountlist_id
-from bank_mysql.sqls.mysql_get_accountlist_name import mysql_get_accountlist_name
+from bank_mysql.querys.mysql_get_user import mysql_get_users
+from bank_mysql.querys.mysql_get_allbalance import mysql_get_allbalance
+from bank_mysql.querys.mysql_get_user_name import mysql_get_user_name
+from bank_mysql.querys.mysql_get_accountlist_id import mysql_get_accountlist_id
+from bank_mysql.querys.mysql_get_accountlist_name import mysql_get_accountlist_name
+
+from bank_mongo.routes.transactions import mongo_transactions_bp
 
 #from oracle.routes.transactions import oracle_transactions_bp
 #from common.errors import generate_error_response
 #from common.success import generate_success_response
+
+###############################################################################
+# program ID : app.py
+# 목적 : 이 프로그램에선 / 로 들어오는 주소를 처리합니다.
+# 설명 : Data는 Mysql,MsSQl,Postgre,Mongo 모든 DB에서 가져오고 처리합니다.
+###############################################################################
 
 app = Flask(__name__)
 app.json.ensure_ascii = False  # 한글 깨짐 방지
@@ -24,6 +32,7 @@ CORS(app, resources={r"/*": {#cors 설정
 
 # MySQL & Oracle API 엔드포인트 등록
 app.register_blueprint(mysql_transactions_bp, url_prefix="/mysql")
+app.register_blueprint(mongo_transactions_bp, url_prefix="/mongo")
 #app.register_blueprint(oracle_transactions_bp, url_prefix="/oracle")
 
 
