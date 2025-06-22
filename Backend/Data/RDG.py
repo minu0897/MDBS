@@ -6,13 +6,21 @@ import random
 import logging
 import json
 import time
-
-
-
+import os
 import sys
-sys.path.append('./Backend/common/config') 
-from .config.RDGconfig import RDG_CONFIG
-from common.config.Flaskconfig import FLASK_CONFIG
+
+# ──────── 이 부분을 파일 최상단에 추가 ────────
+THIS_FILE   = os.path.abspath(__file__)             # .../MDBS/Backend/Data/exeRDG.py
+DATA_DIR    = os.path.dirname(THIS_FILE)            # .../MDBS/Backend/Data
+BACKEND_DIR = os.path.dirname(DATA_DIR)             # .../MDBS/Backend
+ROOT_DIR    = os.path.dirname(BACKEND_DIR)          # .../MDBS
+
+# 이제 ROOT_DIR(MDBS/)를 모듈 탐색 경로 최우선에 넣습니다.
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+    
+from Backend.Data.config.RDGconfig   import RDG_CONFIG
+from Backend.common.config.Flaskconfig import FLASK_CONFIG
 
 serverurl = FLASK_CONFIG["SERVERIP"]+":"+FLASK_CONFIG["SERVERPORT"]
 

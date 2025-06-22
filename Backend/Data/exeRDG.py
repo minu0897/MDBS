@@ -6,14 +6,14 @@ import random
 import logging
 import json
 import time
-#import RDG
+import os
+import sys
 import RDG
 
 
+from Backend.Data.RDG import RDG_CONFIG
+from Backend.common.config.Flaskconfig import FLASK_CONFIG
 
-import sys
-from .config.RDGconfig import RDG_CONFIG
-from common.config.Flaskconfig import FLASK_CONFIG
 serverurl = FLASK_CONFIG["SERVERIP"]+":"+FLASK_CONFIG["SERVERPORT"]
 
 
