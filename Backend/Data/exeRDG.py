@@ -6,14 +6,14 @@ import random
 import logging
 import json
 import time
+#import RDG
 import RDG
 
 
 
 import sys
-sys.path.append('./Backend/common/config') 
-from RDGconfig import RDG_CONFIG
-from Flaskconfig import FLASK_CONFIG
+from .config.RDGconfig import RDG_CONFIG
+from common.config.Flaskconfig import FLASK_CONFIG
 serverurl = FLASK_CONFIG["SERVERIP"]+":"+FLASK_CONFIG["SERVERPORT"]
 
 

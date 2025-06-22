@@ -14,6 +14,9 @@ from bank_mongo.routes.transactions import mongo_transactions_bp
 #from common.errors import generate_error_response
 #from common.success import generate_success_response
 
+
+from common.runRDG import common_transactions_bp
+
 ###############################################################################
 # program ID : app.py
 # 목적 : 이 프로그램에선 / 로 들어오는 주소를 처리합니다.
@@ -34,6 +37,9 @@ CORS(app, resources={r"/*": {#cors 설정
 app.register_blueprint(mysql_transactions_bp, url_prefix="/mysql")
 app.register_blueprint(mongo_transactions_bp, url_prefix="/mongo")
 #app.register_blueprint(oracle_transactions_bp, url_prefix="/oracle")
+
+
+app.register_blueprint(common_transactions_bp, url_prefix="/common")
 
 
 #  /users 엔드포인트: All DB에서 유저 목록을 가져와 합치기
