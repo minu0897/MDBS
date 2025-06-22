@@ -27,8 +27,8 @@ async def main():
     while True:
         async with aiohttp.ClientSession() as session:
             # 초당 100개의 데이터를 생성하도록 설정
-            #await generate_data(session, 5, 1)  
-            await RDG.fff(5)
+            await RDG.generate_data(session, 5, 1,peoples)  
+            #await RDG.fff(20)
             time.sleep(1)
             
 

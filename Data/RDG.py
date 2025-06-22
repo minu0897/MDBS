@@ -39,7 +39,7 @@ file_handler.setFormatter(formatter)
 #logging.error("에러 메시지")
 #logging.critical("치명적인 에러 메시지")
 
-peoples=[]
+#peoples=[]
 dataCount=RDG_CONFIG["DATA_COUNT"]#현재까지 실제DB에 있는 data의 갯수
 
         
@@ -148,7 +148,7 @@ async def process_chain(session, data):
     logging.debug(f"TaskID : {data['task_id']} >>>> ===5. 이체 완료===")
     logging.debug(f"==========================================================")
 
-async def generate_data(session, n, interval):
+async def generate_data(session, n, interval,peoples):
     """
     초당 n개의 데이터를 생성하는 함수
     """
