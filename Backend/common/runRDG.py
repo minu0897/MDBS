@@ -1,46 +1,29 @@
-from flask import Blueprint, Flask, jsonify
-import subprocess
-import os
-import platform
-
-app = Flask(__name__)
+from flask import Blueprint, jsonify
+import subprocess, os, platform
 
 common_transactions_bp = Blueprint("common_transactions", __name__)
 
 @common_transactions_bp.route('/runrdg', methods=['GET'])
 def run_rdg():
-    try:
-        if platform.system() == "Windows":
-            # Windows에서 백그라운드로 RDG.py 실행
-            with open(os.devnull, 'w') as devnull:
-                current_directory = os.getcwd()  # 현재 작업 디렉토리
-                path = os.path.join(current_directory, 'Data', 'exeRDG.py')  # RDG.py 경로
+    current_directory = os.getcwd()
+    script = os.path.join(current_directory, 'Data', 'exeRDG.py')
 
-                # subprocess로 RDG.py 실행
-                process = subprocess.Popen(
-                    ['python', path],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    universal_newlines=True,  # 텍스트 형식으로 출력
-                    encoding='cp949'  # 한글 출력 처리
-                )
+    if platform.system() == "Windows":
+        # 백그라운드 분리 실행
+        DETACHED = subprocess.CREATE_NEW_PROCESS_GROUP
+        process = subprocess.Popen(
+            ['python', script],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=DETACHED
+        )
+    else:
+        # Unix 계열: nohup + &
+        process = subprocess.Popen(
+            ['nohup', 'python', script, '&'],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            shell=False
+        )
 
-                # 출력 및 오류 캡처
-                stdout, stderr = process.communicate()
-
-                # 출력 확인
-                print("stdout:", stdout)
-                print("stderr:", stderr)
-                print(f"rund.py is running with PID: {process.pid}")
-
-        else:
-            # Unix (Linux, macOS)에서 nohup을 사용하여 백그라운드에서 RDG.py 실행
-            subprocess.Popen(['nohup', 'python', 'RDG.py', '&'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-        return jsonify({
-            'message': 'RDG.py script is running in the background.',
-        }), 200
-    except Exception as e:
-        return jsonify({
-            'error': f'An error occurred while running the script: {str(e)}',
-        }), 500
+    return jsonify({'message': 'RDG.py is running in the background.\nprocessid:'+str(process.pid)}), 200
