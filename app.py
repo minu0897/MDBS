@@ -29,6 +29,7 @@ app.json.ensure_ascii = False  # 한글 깨짐 방지
 CORS(app, resources={r"/*": {#cors 설정
     "origins": [
         "http://localhost:3000",
+        "http://127.0.0.1:3000",
         "http://101.235.73.77:3000"
     ]
 }})
