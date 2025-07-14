@@ -1,5 +1,6 @@
 DB_CONFIG = {
-    "host": "101.235.73.77",
+    "host": "",
+    "port": 33066,
     "user": "MDBS",
     "password": "sejong",
     "database": "mdbs"
