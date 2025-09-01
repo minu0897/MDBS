@@ -7,7 +7,7 @@ import { Suspense } from "react"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "DBMS Lab - Database Experiment Platform",
+  title: "MDBS",
   description: "Compare and experiment with MySQL, PostgreSQL, MongoDB, and Redis",
   generator: "v0.app",
 }
