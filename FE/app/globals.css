@@ -1,0 +1,105 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Updated to modern purple-indigo theme for DBMS experiment tool */
+    --background: 0 0% 100%; /* #ffffff - Clean white background */
+    --foreground: 30 41 59; /* #1e293b - Dark slate text for contrast */
+
+    --card: 0 0% 100%; /* #ffffff - White card background */
+    --card-foreground: 51 65 85; /* #334155 - Slate text on cards */
+
+    --popover: 0 0% 100%; /* #ffffff - Popover background */
+    --popover-foreground: 51 65 85; /* #334155 - Text color for popovers */
+
+    --primary: 124 58 237; /* #7c3aed - Professional purple for buttons */
+    --primary-foreground: 0 0% 100%; /* #ffffff - Text color for primary buttons */
+
+    --secondary: 100 116 139; /* #64748b - Slate secondary color */
+    --secondary-foreground: 0 0% 100%; /* #ffffff - Text color for secondary elements */
+
+    --muted: 148 163 184; /* #94a3b8 - Muted slate for secondary information */
+    --muted-foreground: 30 41 59; /* #1e293b - Dark text for muted elements */
+
+    --accent: 99 102 241; /* #6366f1 - Indigo accent */
+    --accent-foreground: 0 0% 100%; /* #ffffff - Text color for accent elements */
+
+    --destructive: 239 68 68; /* #ef4444 - Red for error actions */
+    --destructive-foreground: 0 0% 100%; /* #ffffff - Text color for destructive actions */
+
+    --border: 226 232 240; /* #e2e8f0 - Light slate border */
+    --input: 0 0% 100%; /* #ffffff - Input fields background */
+    --ring: 99 102 241; /* #6366f1 - Indigo focus ring color */
+
+    /* Updated chart colors to modern tech palette */
+    --chart-1: 59 130 246; /* #3b82f6 - MySQL (Blue) */
+    --chart-2: 139 92 246; /* #8b5cf6 - PostgreSQL (Purple) */
+    --chart-3: 16 185 129; /* #10b981 - MongoDB (Green) */
+    --chart-4: 236 72 153; /* #ec4899 - Redis (Pink) */
+    --chart-5: 168 85 247; /* #a855f7 - Additional chart color (Purple) */
+
+    --radius: 0.375rem; /* Rounded corners */
+
+    /* Sidebar updated to modern purple-themed gray */
+    --sidebar: 248 250 252; /* #f8fafc - Very light slate sidebar background */
+    --sidebar-foreground: 30 41 59; /* #1e293b - Slate sidebar text color */
+    --sidebar-primary: 0 0% 100%; /* #ffffff - Sidebar primary color */
+    --sidebar-primary-foreground: 51 65 85; /* #334155 - Sidebar primary text */
+    --sidebar-accent: 124 58 237; /* #7c3aed - Purple sidebar accent color */
+    --sidebar-accent-foreground: 0 0% 100%; /* #ffffff - Sidebar accent text */
+    --sidebar-border: 226 232 240; /* #e2e8f0 - Slate sidebar border */
+    --sidebar-ring: 99 102 241; /* #6366f1 - Indigo sidebar focus ring */
+  }
+
+  .dark {
+    /* Updated dark mode to modern purple-themed dark palette */
+    --background: 15 23 42; /* #0f172a - Dark slate background */
+    --foreground: 248 250 252; /* #f8fafc - Light slate text */
+
+    --card: 30 41 59; /* #1e293b - Dark slate card background */
+    --card-foreground: 248 250 252; /* #f8fafc - Light text on cards */
+
+    --popover: 30 41 59; /* #1e293b - Dark slate popover background */
+    --popover-foreground: 248 250 252; /* #f8fafc - Light text for popovers */
+
+    --primary: 147 51 234; /* #9333ea - Purple primary in dark mode */
+    --primary-foreground: 15 23 42; /* #0f172a - Dark text on primary */
+
+    --secondary: 51 65 85; /* #334155 - Slate secondary in dark mode */
+    --secondary-foreground: 248 250 252; /* #f8fafc - Light text on secondary */
+
+    --muted: 51 65 85; /* #334155 - Muted slate in dark mode */
+    --muted-foreground: 148 163 184; /* #94a3b8 - Muted text in dark mode */
+
+    --accent: 51 65 85; /* #334155 - Accent background in dark mode */
+    --accent-foreground: 248 250 252; /* #f8fafc - Light text on accent */
+
+    --destructive: 220 38 38; /* #dc2626 - Destructive color in dark mode */
+    --destructive-foreground: 248 250 252; /* #f8fafc - Light text on destructive */
+
+    --border: 51 65 85; /* #334155 - Dark slate border */
+    --input: 51 65 85; /* #334155 - Dark slate input background */
+    --ring: 99 102 241; /* #6366f1 - Indigo focus ring in dark mode */
+
+    /* Sidebar dark mode updated to purple theme */
+    --sidebar: 15 23 42; /* #0f172a - Dark slate sidebar background */
+    --sidebar-foreground: 248 250 252; /* #f8fafc - Light sidebar text */
+    --sidebar-primary: 51 65 85; /* #334155 - Dark slate sidebar primary */
+    --sidebar-primary-foreground: 248 250 252; /* #f8fafc - Light sidebar primary text */
+    --sidebar-accent: 147 51 234; /* #9333ea - Purple sidebar accent in dark mode */
+    --sidebar-accent-foreground: 15 23 42; /* #0f172a - Dark text on sidebar accent */
+    --sidebar-border: 51 65 85; /* #334155 - Dark slate sidebar border */
+    --sidebar-ring: 99 102 241; /* #6366f1 - Indigo sidebar focus ring in dark mode */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
