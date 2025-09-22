@@ -7,6 +7,7 @@ db.createCollection("transactions", {
         status:          { bsonType: "string", minLength: 1, maxLength: 1 },   // 기본값은 애플리케이션에서 셋
         src_account_id:  { bsonType: ["objectId","null"] },
         dst_account_id:  { bsonType: ["objectId","null"] },
+        src_bank:        { bsonType: ["string","null"], maxLength: 2 },
         dst_bank:        { bsonType: ["string","null"], maxLength: 2 },
         amount:          { bsonType: "decimal" },
         idempotency_key: { bsonType: "string", minLength: 1, maxLength: 100 },

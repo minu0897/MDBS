@@ -4,6 +4,7 @@ CREATE TABLE transactions (
   status          VARCHAR(1) NOT NULL,
   src_account_id  BIGINT,
   dst_account_id  BIGINT,
+  src_bank        VARCHAR(2),
   dst_bank        VARCHAR(2),
   amount          NUMERIC(19,4) NOT NULL,
   idempotency_key VARCHAR(100) NOT NULL UNIQUE,

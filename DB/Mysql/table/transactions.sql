@@ -4,6 +4,7 @@ CREATE TABLE `transactions` (
   `status` varchar(1) NOT NULL,
   `src_account_id` bigint DEFAULT NULL,
   `dst_account_id` bigint DEFAULT NULL,
+  `src_bank` varchar(2) DEFAULT NULL,
   `dst_bank` varchar(2) DEFAULT NULL,
   `amount` decimal(19,4) NOT NULL,
   `idempotency_key` varchar(100) NOT NULL,
