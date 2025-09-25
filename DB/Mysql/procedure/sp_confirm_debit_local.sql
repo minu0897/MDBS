@@ -1,6 +1,7 @@
 -- ---------------------------------------
 --              PROCEDURE              --
 -- ---------------------------------------
+-- DBMS :MySQL
 -- Title : 출금 확정
 -- Detail : 출금 확정 프로시저
 CREATE PROCEDURE sp_confirm_debit_local(

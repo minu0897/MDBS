@@ -1,6 +1,7 @@
 -- ---------------------------------------
 --               PROCEDURE              --
 -- ---------------------------------------
+-- DBMS :MySQL
 -- Title : 입금 확정
 -- Detail : 입금 확정 프로시저
 CREATE PROCEDURE sp_confirm_credit_local(

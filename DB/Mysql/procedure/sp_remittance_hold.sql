@@ -1,6 +1,7 @@
 -- ---------------------------------------
 --               PROCEDURE              --
 -- ---------------------------------------
+-- DBMS :MySQL
 -- Title : 송금(보류)
 -- Detail : 송금(보류) 프로시저
 CREATE PROCEDURE sp_remittance_hold(

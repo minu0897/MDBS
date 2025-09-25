@@ -1,6 +1,7 @@
 -- ---------------------------------------
 --               PROCEDURE              --
 -- ---------------------------------------
+-- DBMS :MySQL
 -- Title : 수금(보류)
 -- Detail : 수금(보류) 프로시저
 CREATE PROCEDURE sp_receive_prepare(

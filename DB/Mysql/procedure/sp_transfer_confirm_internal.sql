@@ -1,6 +1,7 @@
 -- ---------------------------------------
 --              PROCEDURE              --
 -- ---------------------------------------
+-- DBMS :MySQL
 -- Title : 이체 확정
 -- Detail : 이체 확정(입/출 같은은행) 프로시저
 CREATE PROCEDURE sp_transfer_confirm_internal(
