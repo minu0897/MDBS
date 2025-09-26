@@ -4,7 +4,7 @@ services:
   api:
     build:
       context: ..
-      dockerfile: Docker/Dockerfile   # ← Dockerfile이 Docker/ 밑에 있다고 가정
+      dockerfile: ./Dockerfile   # ← Dockerfile이 Docker/ 밑에 있다고 가정
       target: dev
     env_file: ../BE/.env.dev
     command: flask --app BE/app.py run --host=0.0.0.0 --port=8000 --debug
