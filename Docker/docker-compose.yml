@@ -1,17 +1,13 @@
-version: "3.9"
-
 services:
-  # flask
   api:
     build:
       context: ..
-      dockerfile: Docker/dockerfile   # ← dev와 동일 경로로 통일
-      target: prod                    # ← prod 타깃
-    container_name: flask-api
-    restart: always
-    ports: ["8000:8000"]
-    env_file:
-      - ../BE/.env.server
+      dockerfile: Docker/dockerfile
+      target: prod
+    env_file: ../BE/.env.server
+    ports:
+      - "8000:8000"
+      
     # 운영 재현성 위해 바인드 마운트 제거 권장(필요하면 유지)
     # volumes:
     #   - ..:/app:cached

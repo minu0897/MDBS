@@ -5,8 +5,9 @@ FROM python:3.11-slim AS base
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential gcc libpq-dev default-libmysqlclient-dev curl \
-  && rm -rf /var/lib/apt/lists/*
+    build-essential curl gcc pkg-config \
+    libpq-dev default-libmysqlclient-dev libmariadb-dev \
+    && rm -rf /var/lib/apt/lists/*
 COPY BE/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
