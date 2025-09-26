@@ -6,7 +6,7 @@ services:
       target: prod
     env_file: ../BE/.env.server
     ports:
-      - "8000:8000"
+      - "5000:5000"
       
     # 운영 재현성 위해 바인드 마운트 제거 권장(필요하면 유지)
     # volumes:
