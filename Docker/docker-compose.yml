@@ -5,7 +5,7 @@ services:
   api:
     build:
       context: ..
-      dockerfile: ./dockerfile   # ← dev와 동일 경로로 통일
+      dockerfile: Docker/dockerfile   # ← dev와 동일 경로로 통일
       target: prod                    # ← prod 타깃
     container_name: flask-api
     restart: always
