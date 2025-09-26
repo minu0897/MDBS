@@ -1,32 +1,46 @@
-#도커 파일 포맷 버젼
 version: "3.9"
 
-#올릴려는 서비스들 명시
 services:
-  # -------------------
-  # MongoDB 설정
-  # -------------------
+  # flask
+  api:
+    build:
+      context: ..
+      dockerfile: Docker/Dockerfile   # ← dev와 동일 경로로 통일
+      target: prod                    # ← prod 타깃
+    container_name: flask-api
+    restart: always
+    ports: ["8000:8000"]
+    env_file:
+      - ../BE/.env.server
+    # 운영 재현성 위해 바인드 마운트 제거 권장(필요하면 유지)
+    # volumes:
+    #   - ..:/app:cached
+    depends_on:
+      - mysql
+      - postgres
+      - mongo
+      - oracle
+
+  # MongoDB
   mongo:
     image: mongo:6.0
     container_name: mongo
     restart: always
     ports:
-      - "27017:27017"
+      - "27017:27017"                 # 보안상 필요 없으면 127.0.0.1:27017:27017 권장
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: rootpass
     volumes:
       - mongo_data:/data/db
 
-  # -------------------
-  # MySQL 설정
-  # -------------------
+  # MySQL
   mysql:
     image: mysql:8.0
     container_name: mysql
     restart: always
     ports:
-      - "3306:3306"
+      - "3306:3306"                   # 보안상 필요 없으면 127.0.0.1:3306:3306 권장
     environment:
       MYSQL_ROOT_PASSWORD: rootpass
       MYSQL_DATABASE: testdb
@@ -36,16 +50,14 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
 
-  # -------------------
-  # Oracle Database (XE)  설정
-  # -------------------
+  # Oracle XE
   oracle:
     image: gvenzl/oracle-xe:21-slim
     container_name: oracle
     restart: always
     ports:
-      - "1521:1521"   # listener
-      - "5500:5500"   # EM Express
+      - "1521:1521"
+      - "5500:5500"
     environment:
       ORACLE_PASSWORD: rootpass
       APP_USER: testuser
@@ -53,17 +65,13 @@ services:
     volumes:
       - oracle_data:/opt/oracle/oradata
 
-  # -------------------
-  # PostgreSQL 설정
-  # -------------------
+  # PostgreSQL
   postgres:
     image: postgres:15
     container_name: postgres
     restart: always
     ports:
-      #포트포워딩을 Postgre port를 설정하지 못해
-      #temp로 열어둔 port 이용
-      - "3001:5432"   # ← 호스트 3001 → 컨테이너 5432
+      - "3001:5432"                   # 호스트 3001 → 컨테이너 5432
     environment:
       POSTGRES_USER: testuser
       POSTGRES_PASSWORD: testpass
@@ -71,9 +79,6 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-# -------------------
-# Volumes - 데이터 영구 보존
-# -------------------
 volumes:
   mongo_data:
   mysql_data:

@@ -1,4 +1,17 @@
 #환경설정파일
 /DOC/환경설정.txt
 
-#tmep
+# env & secrets
+*.env
+.env.*
+!*.example
+
+# python
+__pycache__/
+*.pyc
+
+# node
+FE/node_modules/
+
+# docker artifacts
+*.log
