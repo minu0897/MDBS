@@ -23,6 +23,46 @@ def create_app():
             "profile": info.get("profile"),
             "debug": app.config.get("DEBUG", False)
         }), 200
+    
+    if app.config.get("DEBUG"):   # dev에서만
+        @app.get("/configz")
+        def configz():
+            c = app.config
+            def pick(d, keys):
+                return {k:d.get(k) for k in keys}
+            return jsonify({
+                "profile_info": c.get("PROFILE_INFO"),
+                "mysql": pick(c.get("MYSQL", {}), ["host","port","db","user"]),
+                "postgres": pick(c.get("POSTGRES", {}), ["host","port","db","user"]),
+                "oracle": pick(c.get("ORACLE", {}), ["dsn","user"]),
+                "mongo_uri": c.get("MONGO_URI"),
+            })
+    
+    if app.config.get("DEBUG"):   # dev에서만
+        @app.get("/diagz")
+        def diagz():
+            info = app.config.get("PROFILE_INFO", {})
+            # oracledb import는 여기서(컨테이너에만 존재)
+            thin = None
+            try:
+                import oracledb
+                thin = bool(oracledb.is_thin_mode())
+            except Exception:
+                thin = "unavailable"
+
+            return jsonify({
+                "profile_info": info,
+                "oracle": {
+                    "dsn": app.config.get("ORACLE", {}).get("dsn"),
+                    "user": app.config.get("ORACLE", {}).get("user"),
+                },
+                "env": {
+                    "TNS_ADMIN": os.environ.get("TNS_ADMIN"),
+                    "ORACLE_HOME": os.environ.get("ORACLE_HOME"),
+                    "APP_PROFILE": os.environ.get("APP_PROFILE"),
+                },
+                "oracledb_thin_mode": thin,
+            }), 200
 
     # 참고용 콘솔 로그
     info = app.config.get("PROFILE_INFO", {})
@@ -35,42 +75,6 @@ os.environ.pop("TNS_ADMIN", None)
 os.environ.pop("ORACLE_HOME", None)
 
 app = create_app()
-@app.get("/configz")
-def configz():
-    c = app.config
-    def pick(d, keys):
-        return {k:d.get(k) for k in keys}
-    return jsonify({
-        "profile_info": c.get("PROFILE_INFO"),
-        "mysql": pick(c.get("MYSQL", {}), ["host","port","db","user"]),
-        "postgres": pick(c.get("POSTGRES", {}), ["host","port","db","user"]),
-        "oracle": pick(c.get("ORACLE", {}), ["dsn","user"]),
-        "mongo_uri": c.get("MONGO_URI"),
-    })
-@app.get("/diagz")
-def diagz():
-    info = app.config.get("PROFILE_INFO", {})
-    # oracledb import는 여기서(컨테이너에만 존재)
-    thin = None
-    try:
-        import oracledb
-        thin = bool(oracledb.is_thin_mode())
-    except Exception:
-        thin = "unavailable"
-
-    return jsonify({
-        "profile_info": info,
-        "oracle": {
-            "dsn": app.config.get("ORACLE", {}).get("dsn"),
-            "user": app.config.get("ORACLE", {}).get("user"),
-        },
-        "env": {
-            "TNS_ADMIN": os.environ.get("TNS_ADMIN"),
-            "ORACLE_HOME": os.environ.get("ORACLE_HOME"),
-            "APP_PROFILE": os.environ.get("APP_PROFILE"),
-        },
-        "oracledb_thin_mode": thin,
-    }), 200
 
 
 if __name__ == "__main__":
