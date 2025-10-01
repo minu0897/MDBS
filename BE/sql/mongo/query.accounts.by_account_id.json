@@ -1,0 +1,4 @@
+[
+  { "$match": { "_id": "%(account_id)s" } },
+  { "$project": { "_id": 0, "name": 1, "balance": 1 } }
+]

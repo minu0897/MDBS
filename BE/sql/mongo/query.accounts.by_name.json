@@ -1,0 +1,5 @@
+[
+  { "$match": { "name": { "$regex": "^%(name)s", "$options": "i" } } },
+  { "$project": { "_id": 0, "name": 1, "balance": 1 } },
+  { "$sort": { "_id": 1 } }
+]

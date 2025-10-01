@@ -1,4 +1,4 @@
-SELECT 
+SELECT
   *
 FROM
-  ACCOUNTS;
+  MDBS.accounts;

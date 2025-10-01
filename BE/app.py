@@ -11,6 +11,7 @@ for k in ("ORACLE_HOME", "TNS_ADMIN", "TWO_TASK", "LOCAL"):
 def create_app():
     app = Flask(__name__)
     load_config(app)                       # .env → .env.{APP_PROFILE} 로드
+    
     app.register_blueprint(db_bp,  url_prefix="/db")
     app.register_blueprint(sys_bp, url_prefix="/system")
 
