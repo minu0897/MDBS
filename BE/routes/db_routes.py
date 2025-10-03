@@ -2,6 +2,7 @@
 from flask import Blueprint, request
 from utils.response import ok, fail
 from services.file_sql_service import run_sql_file, run_mongo_file
+from db.router import get_adapter
 
 db_bp = Blueprint("db", __name__)
 
@@ -31,3 +32,41 @@ def file_mongo():
     params = d.get("params", {})
     res = run_mongo_file(collection, qid, params)
     return ok(res)
+
+@db_bp.post("/proc/exec")
+def proc_exec():
+    from utils.response import ok, fail
+    from db.router import get_adapter
+    try:
+        d = request.get_json(force=True) or {}
+        dbms = (d.get("dbms") or "").lower()
+        name = d["name"]
+        args = d.get("args", []) or []
+        adapter = get_adapter(dbms)
+
+        if dbms == "postgres":
+            # FUNCTION 결과셋: SELECT * FROM func(...)
+            # PROCEDURE: CALL proc(...)
+            mode = (d.get("mode") or "proc").lower()
+            if mode == "func":
+                rows = adapter.call_function(name, args)
+            else:
+                rows = adapter.call_procedure(name, args)
+            return ok(rows)
+
+        if dbms == "oracle":
+            # OUT SYS_REFCURSOR 지원: out 배열에서 "cursor" 표시한 위치를 커서로 바인딩
+            out_spec = d.get("out", None)
+            if out_spec:
+                rows = adapter.call_procedure_with_cursor(name, args, out_spec)
+            else:
+                rows = adapter.call_procedure(name, args)
+            return ok(rows)
+        if dbms == "mysql":
+            out_count = int(d.get("out_count", 0))
+            res = adapter.call_procedure(name, args, out_count=out_count)  # ← 반드시 전달
+            return ok(res)
+
+    except Exception as e:
+        return fail(str(e), 400)
+    

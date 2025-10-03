@@ -4,6 +4,7 @@
 -- DBMS :MySQL
 -- Title : 송금(보류)
 -- Detail : 송금(보류) 프로시저
+
 CREATE PROCEDURE sp_remittance_hold(
     IN  p_src_account_id   BIGINT,
     IN  p_dst_account_id   BIGINT,

@@ -1,6 +1,6 @@
 [
   { "$match": {} },
-  { "$project": { "_id": 0, "name": 1, "balance": 1 } },
+  { "$project": { "_id": 1, "name": 1, "balance": 1 } },
   { "$sort": { "_id": 1 } },
-  { "$limit": 100 }
+  { "$limit": 400 }
 ]

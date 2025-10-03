@@ -2,6 +2,8 @@ from flask import Flask, jsonify
 from config.settings import load_config
 from routes.db_routes import db_bp
 from routes.system_routes import sys_bp
+from routes.mongo_proc_routes import mongo_bp
+
 import os
 
 os.environ["PYTHON_ORACLEDB_THIN"] = "1"     # 무조건 Thin
@@ -14,6 +16,7 @@ def create_app():
     
     app.register_blueprint(db_bp,  url_prefix="/db")
     app.register_blueprint(sys_bp, url_prefix="/system")
+    app.register_blueprint(mongo_bp, url_prefix="/mongo")
 
     # ---- /healthz (liveness) ----
     @app.get("/healthz")

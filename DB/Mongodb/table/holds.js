@@ -3,7 +3,7 @@ db.createCollection("holds", {
     bsonType: "object",
     required: ["account_id","amount","status","idempotency_key","created_at"],
     properties: {
-      account_id:      { bsonType: "objectId" },
+      account_id:      { bsonType: "string", maxLength: 7 },
       amount:          { bsonType: "decimal" },
       status:          { bsonType: "string", minLength: 1, maxLength: 1, },
       idempotency_key: { bsonType: "string", minLength: 1, maxLength: 100 },

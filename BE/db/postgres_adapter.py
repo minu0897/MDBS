@@ -24,21 +24,18 @@ class PostgresAdapter:
             cursor_factory=psycopg2.extras.RealDictCursor,
         )
 
-    def execute_query(self, sql: str, params: Params = None):
-        with self._conn() as conn, conn.cursor() as cur:
-            cur.execute(sql, params or ())
-            if cur.description:
-                return cur.fetchall()
-            return {"affected": cur.rowcount}
-
-    def call_procedure(self, name: str, params: Optional[List[Any]] = None):
-        """
-        PostgreSQL 11+ 에서 CREATE PROCEDURE 사용 시: CALL proc(...)
-        함수(RETURNING)가 아니라 프로시저일 때 이 경로 사용.
-        """
-        placeholders = ", ".join(["%s"] * (len(params or [])))
-        sql = f"CALL {name}({placeholders});" if placeholders else f"CALL {name}();"
+    def call_procedure(self, name: str, params=None):
+        """CALL proc(…): 결과셋 없음(보통), rowcount만 의미 있음"""
+        placeholders = ", ".join(["%s"] * len(params or ()))
+        sql = f"CALL {name}({placeholders})"
         with self._conn() as conn, conn.cursor() as cur:
             cur.execute(sql, params or [])
-            # CALL은 결과셋이 없으므로 상태만 반환
-            return {"status": "ok"}
+            return {"rows_affected": cur.rowcount}
+
+    def call_function(self, name: str, params=None):
+        """SELECT * FROM func(…): 결과셋 반환"""
+        placeholders = ", ".join(["%s"] * len(params or ()))
+        sql = f"SELECT * FROM {name}({placeholders})"
+        with self._conn() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params or [])
+            return cur.fetchall()
