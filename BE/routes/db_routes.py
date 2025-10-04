@@ -55,12 +55,20 @@ def proc_exec():
             return ok(rows)
 
         if dbms == "oracle":
-            # OUT SYS_REFCURSOR 지원: out 배열에서 "cursor" 표시한 위치를 커서로 바인딩
-            out_spec = d.get("out", None)
+            # ★ 추가: out_count / out_types / timeout_ms 전달
+            out_count  = int(d.get("out_count", 0))
+            out_types  = d.get("out_types") or []
+
+            out_spec = d.get("out")
             if out_spec:
-                rows = adapter.call_procedure_with_cursor(name, args, out_spec)
+                rows = adapter.call_procedure_with_cursor(name, args, out_spec=out_spec)
             else:
-                rows = adapter.call_procedure(name, args)
+                rows = adapter.call_procedure(
+                    name,
+                    args,
+                    out_count=out_count,
+                    out_types=out_types
+                )
             return ok(rows)
         if dbms == "mysql":
             out_count = int(d.get("out_count", 0))

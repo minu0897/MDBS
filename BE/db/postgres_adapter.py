@@ -23,7 +23,13 @@ class PostgresAdapter:
             dbname=self.cfg["db"],
             cursor_factory=psycopg2.extras.RealDictCursor,
         )
-
+    def execute_query(self, sql: str, params: Params = None):
+        with self._conn() as conn, conn.cursor() as cur:
+            cur.execute(sql, params or ())
+            if cur.description:
+                return cur.fetchall()
+            return {"affected": cur.rowcount}
+        
     def call_procedure(self, name: str, params=None):
         """CALL proc(…): 결과셋 없음(보통), rowcount만 의미 있음"""
         placeholders = ", ".join(["%s"] * len(params or ()))
