@@ -1,8 +1,10 @@
 from flask import Flask, jsonify
+from flask_cors import CORS
 from config.settings import load_config
 from routes.db_routes import db_bp
 from routes.system_routes import sys_bp
 from routes.mongo_proc_routes import mongo_bp
+from routes.rdg_routes import bp_rdg
 
 import os
 
@@ -12,11 +14,13 @@ for k in ("ORACLE_HOME", "TNS_ADMIN", "TWO_TASK", "LOCAL"):
 
 def create_app():
     app = Flask(__name__)
+    CORS(app) #CORS 허용
     load_config(app)                       # .env → .env.{APP_PROFILE} 로드
     
     app.register_blueprint(db_bp,  url_prefix="/db")
     app.register_blueprint(sys_bp, url_prefix="/system")
     app.register_blueprint(mongo_bp, url_prefix="/mongo")
+    app.register_blueprint(bp_rdg, url_prefix="/rdg")
 
     # ---- /healthz (liveness) ----
     @app.get("/healthz")

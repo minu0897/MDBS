@@ -9,6 +9,8 @@
 # python
 __pycache__/
 *.pyc
+## dev에서만 사용
+RDG.py 
 
 # node
 FE/node_modules/

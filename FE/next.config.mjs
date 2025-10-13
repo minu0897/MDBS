@@ -1,19 +1,16 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  output: 'export',        // 정적 export → out/ 폴더 생성
-  basePath: '/mdbs',       
-  assetPrefix: '/mdbs/',   // 정적 자산 경로 접두사
-  images: { unoptimized: true }, // next/image 사용 시 필수(정적 export)
-  trailingSlash: true,     
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  images: {
-    unoptimized: true,
-  },
-}
+/** Next 15: dev는 basePath/assetPrefix 끄고, prod에서만 /mdbs 사용 */
+const isProd = process.env.NODE_ENV === 'production';
 
-export default nextConfig
+export default {
+  pageExtensions: ['js', 'jsx', 'ts', 'tsx'],
+
+  ...(isProd
+    ? {
+        basePath: '/mdbs',
+        assetPrefix: '/mdbs/',
+        trailingSlash: true,
+        images: { unoptimized: true },
+        // 필요할 때만 켜세요: output: 'export',
+      }
+    : {}),
+};

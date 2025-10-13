@@ -10,13 +10,24 @@ services:
       PYTHON_ORACLEDB_THIN: "1"       # oracledb 얇은 모드 강제
       TNS_ADMIN: ""                   # TNS 경로 무력화(빈 문자열)
       ORACLE_HOME: ""                 # Thick 모드 유도 방지
-      # 필요 시 여기서 .env.dev 값을 덮어써도 됨 (우선순위 ↑)
-      # ORACLE_DSN: "211.48.53.76:15211:XE"
-      # ORACLE_USER: "MDBS"
-      # ORACLE_PASSWORD: "******"
     command: flask --app BE/app.py run --host=0.0.0.0 --port=5000 --debug
     depends_on: []
     ports:
       - "5000:5000"
     volumes:
       - ..:/app:cached
+
+  web:
+    build:
+      context: ..
+      dockerfile: Docker/fe.dockerfile
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: "http://localhost:5000"
+      WATCHPACK_POLLING: "true"   # 도커 파일감지 안정화(Next)
+    ports:
+      - "5173:5173"
+    volumes:
+      - ../FE:/app
+      - /app/node_modules
+    depends_on:
+      - api
