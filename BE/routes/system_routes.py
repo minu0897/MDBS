@@ -39,34 +39,34 @@ def status():
 # 처음 호출 시 수집기 시작, 캐시 반환
 @sys_bp.get("/docker/stats")
 def docker_stats():
-    """
-    Docker 컨테이너 실시간 리소스: CPU%, MEM(bytes/limit/%), Net/Block IO 합산
-    환경변수:
-      - DOCKER_SOCK=unix://var/run/docker.sock
-      - STATS_POLL_SEC=2
-      - NAME_FILTER=mysql|postgres|oracle|mongo|mongod
-      - LABEL_KEY=com.mdbs.role
-      - LABEL_VAL=dbms
-    """
     try:
-        # dev 프로필이면 더미 응답
         if os.getenv("APP_PROFILE", "dev").strip().lower() == 'dev':
             return ok({"age_sec": 111})
-        #  지연 import (부팅시 크래시 방지)
-        global docker_collector, _DOCKER_INIT_ERR
-        if docker_collector is None and _DOCKER_INIT_ERR is None:
+
+        global docker_collector, _DOCKER_IMPORT_ERR
+        if docker_collector is None and _DOCKER_IMPORT_ERR is None:
             try:
-                from services.docker_stats_service import collector as _collector
-                docker_collector = _collector
+                from services.docker_stats_service import collector as _c
+                docker_collector = _c
             except Exception as e:
-                _DOCKER_INIT_ERR = e
-        if _DOCKER_INIT_ERR is not None:
-            # 서비스 임포트 자체가 실패하면 앱은 살리고 JSON으로 알림
-            return ok({"error": "docker_stats_import_failed", "detail": str(_DOCKER_INIT_ERR)})
+                _DOCKER_IMPORT_ERR = e
+
+        if _DOCKER_IMPORT_ERR is not None:
+            return ok({"error": "docker_stats_import_failed", "detail": str(_DOCKER_IMPORT_ERR)})
+
+        # 백그라운드 시작
         docker_collector.start_once()
-        cache = docker_collector.get_cached()
-        age = round(time.time() - (cache["ts"] or 0), 2)
-        return ok({"age_sec": age, "containers": cache["data"]})
+
+        # 즉시 1회 동기 수집 시도 (성공 시 즉시 실제 데이터 반환)
+        try:
+            docker_collector._ensure_client()
+            rows = docker_collector._collect_once()
+            return ok({"age_sec": 0, "containers": rows})
+        except Exception as e:
+            cache = docker_collector.get_cached()
+            age = round(time.time() - (cache["ts"] or 0), 2)
+            return ok({"age_sec": age, "containers": cache["data"], "detail": str(e)})
+
     except Exception as e:
         return fail(str(e), 500)
 
