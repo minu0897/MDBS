@@ -6,6 +6,10 @@ import threading
 from typing import Any, Dict, List, Tuple
 import docker
 from docker.errors import DockerException
+try:
+    import requests_unixsocket  # noqa: F401
+except Exception:
+    pass
 
 class _DockerStatsCollector:
     """
@@ -32,14 +36,9 @@ class _DockerStatsCollector:
     def _ensure_client(self):
         if self.client is not None:
             return
-        # http+docker 어댑터 문제 등으로 실패해도 예외 올리게 둠(상위에서 잡음)
-        try:
-            self.client = docker.DockerClient(base_url=self.base_url)
-            self.client.ping()
-        except DockerException:
-            # 환경에 따라 from_env()가 더 잘 붙는 경우
-            self.client = docker.from_env()
-            self.client.ping()
+         # 여기서 실패하면 예외를 던지게 두고 상위에서 캐시에 에러 기록
+        self.client = docker.DockerClient(base_url=self.base_url)
+        self.client.ping()  # 연결 확인
 
     # ---------- public ----------
     def start_once(self):
@@ -52,7 +51,7 @@ class _DockerStatsCollector:
             with self._lock:
                 self._cache["data"] = [{"error": f"docker_client_init_failed: {e}"}]
                 self._cache["ts"] = time.time()
-                
+
         t = threading.Thread(target=self._loop, daemon=True)
         t.start()
 
@@ -76,6 +75,9 @@ class _DockerStatsCollector:
             time.sleep(self.poll_sec)
 
     def _collect_once(self) -> List[Dict[str, Any]]:
+        if self.client is None:
+            raise RuntimeError("docker_client_not_ready")
+    
         rows: List[Dict[str, Any]] = []
         for c in self.client.containers.list(all=True):
             if not self._match_filters(c):
@@ -114,6 +116,23 @@ class _DockerStatsCollector:
             if labels.get(self.label_key) != self.label_val:
                 return False
         return True
+    
+    def _poll_loop(self):
+        while not self._stop:
+            try:
+                # ✅ 매 주기마다 클라이언트가 없으면 다시 시도
+                if self.client is None:
+                    self._ensure_client()
+                data = self._collect_once()
+                with self._lock:
+                    self._cache["data"] = data
+                    self._cache["ts"] = time.time()
+            except Exception as e:
+                with self._lock:
+                    # 에러 메시지를 명확하게
+                    self._cache["data"] = [{"error": f"collector_failed: {e}"}]
+                    self._cache["ts"] = time.time()
+            time.sleep(self.poll_sec)
 
     @staticmethod
     def _cpu_percent(stat: Dict[str, Any]) -> float:
