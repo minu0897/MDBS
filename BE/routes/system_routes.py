@@ -8,7 +8,7 @@ from utils.response import ok, fail
 from services.docker_stats_service import collector as docker_collector #도커 DBMS들 상태
 
 
-sys_bp = Blueprint("system", __name__)
+sys_bp = Blueprint("system", __name__, url_prefix="/system") 
 
 @sys_bp.get("/status")
 def status():
@@ -44,11 +44,11 @@ def docker_stats():
     try:
         if os.getenv("APP_PROFILE", "dev").strip().lower() == 'dev':
             return ok({"age_sec": 111})
-
-        docker_collector.start_once()
-        cache = docker_collector.get_cached()
-        age = round(time.time() - (cache["ts"] or 0), 2)
-        return ok({"age_sec": age, "containers": cache["data"]})
+        else:
+            docker_collector.start_once()
+            cache = docker_collector.get_cached()
+            age = round(time.time() - (cache["ts"] or 0), 2)
+            return ok({"age_sec": age, "containers": cache["data"]})
     except Exception as e:
         return fail(str(e), 500)
 

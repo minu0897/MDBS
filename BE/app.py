@@ -18,7 +18,7 @@ def create_app():
     load_config(app)                       # .env → .env.{APP_PROFILE} 로드
     
     app.register_blueprint(db_bp,  url_prefix="/db")
-    app.register_blueprint(sys_bp, url_prefix="/system")
+    app.register_blueprint(sys_bp) #url_prefi는 system_routes에서 해주고있음
     app.register_blueprint(mongo_bp, url_prefix="/mongo")
     app.register_blueprint(bp_rdg, url_prefix="/rdg")
 
