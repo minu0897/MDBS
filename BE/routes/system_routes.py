@@ -23,6 +23,32 @@ def status():
     서버 간단 상태값: CPU, 메모리, 디스크, loadavg
     """
     try:
+        v = psutil.virtual_memory()
+        d = psutil.disk_usage("/")
+        cpu = psutil.cpu_percent(interval=0.2)
+        load = os.getloadavg() if hasattr(os, "getloadavg") else (0, 0, 0)
+        return ok({
+            "cpu_percent": cpu,
+            "mem": {"total": v.total, "used": v.used, "percent": v.percent},
+            "disk": {"total": d.total, "used": d.used, "percent": d.percent},
+            "loadavg": {"1m": load[0], "5m": load[1], "15m": load[2]},
+        })
+    except Exception as e:
+        return fail(str(e), 500)
+    
+# 처음 호출 시 수집기 시작, 캐시 반환
+@sys_bp.get("/docker/stats")
+def docker_stats():
+    """
+    Docker 컨테이너 실시간 리소스: CPU%, MEM(bytes/limit/%), Net/Block IO 합산
+    환경변수:
+      - DOCKER_SOCK=unix://var/run/docker.sock
+      - STATS_POLL_SEC=2
+      - NAME_FILTER=mysql|postgres|oracle|mongo|mongod
+      - LABEL_KEY=com.mdbs.role
+      - LABEL_VAL=dbms
+    """
+    try:
         # dev 프로필이면 더미 응답
         if os.getenv("APP_PROFILE", "dev").strip().lower() == 'dev':
             return ok({"age_sec": 111})
@@ -41,29 +67,6 @@ def status():
         cache = docker_collector.get_cached()
         age = round(time.time() - (cache["ts"] or 0), 2)
         return ok({"age_sec": age, "containers": cache["data"]})
-    except Exception as e:
-        return fail(str(e), 500)
-    
-# 처음 호출 시 수집기 시작, 캐시 반환
-@sys_bp.get("/docker/stats")
-def docker_stats():
-    """
-    Docker 컨테이너 실시간 리소스: CPU%, MEM(bytes/limit/%), Net/Block IO 합산
-    환경변수:
-      - DOCKER_SOCK=unix://var/run/docker.sock
-      - STATS_POLL_SEC=2
-      - NAME_FILTER=mysql|postgres|oracle|mongo|mongod
-      - LABEL_KEY=com.mdbs.role
-      - LABEL_VAL=dbms
-    """
-    try:
-        if os.getenv("APP_PROFILE", "dev").strip().lower() == 'dev':
-            return ok({"age_sec": 111})
-        else:
-            docker_collector.start_once()
-            cache = docker_collector.get_cached()
-            age = round(time.time() - (cache["ts"] or 0), 2)
-            return ok({"age_sec": age, "containers": cache["data"]})
     except Exception as e:
         return fail(str(e), 500)
 

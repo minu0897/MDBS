@@ -6,7 +6,7 @@ services:
       target: prod
     env_file: ../BE/.env.server
     environment:
-      - DOCKER_SOCK=unix://var/run/docker.sock
+      - DOCKER_SOCK=unix:///var/run/docker.sock
       - STATS_POLL_SEC=2
     group_add:
       - "124"  
