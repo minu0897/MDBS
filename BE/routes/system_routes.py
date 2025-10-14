@@ -5,7 +5,14 @@ import psutil
 import time
 from flask import Blueprint, request
 from utils.response import ok, fail
-from services.docker_stats_service import collector as docker_collector #도커 DBMS들 상태
+
+# docker stat server 전용
+try:
+    from services.docker_stats_service import collector as docker_collector  # 도커 DBMS들 상태
+    _DOCKER_INIT_ERR = None
+except Exception as e:
+    docker_collector = None
+    _DOCKER_INIT_ERR = e
 
 
 sys_bp = Blueprint("system", __name__, url_prefix="/system") 
@@ -16,16 +23,24 @@ def status():
     서버 간단 상태값: CPU, 메모리, 디스크, loadavg
     """
     try:
-        v = psutil.virtual_memory()
-        d = psutil.disk_usage("/")
-        cpu = psutil.cpu_percent(interval=0.2)
-        load = os.getloadavg() if hasattr(os, "getloadavg") else (0, 0, 0)
-        return ok({
-            "cpu_percent": cpu,
-            "mem": {"total": v.total, "used": v.used, "percent": v.percent},
-            "disk": {"total": d.total, "used": d.used, "percent": d.percent},
-            "loadavg": {"1m": load[0], "5m": load[1], "15m": load[2]},
-        })
+        # dev 프로필이면 더미 응답
+        if os.getenv("APP_PROFILE", "dev").strip().lower() == 'dev':
+            return ok({"age_sec": 111})
+        #  지연 import (부팅시 크래시 방지)
+        global docker_collector, _DOCKER_INIT_ERR
+        if docker_collector is None and _DOCKER_INIT_ERR is None:
+            try:
+                from services.docker_stats_service import collector as _collector
+                docker_collector = _collector
+            except Exception as e:
+                _DOCKER_INIT_ERR = e
+        if _DOCKER_INIT_ERR is not None:
+            # 서비스 임포트 자체가 실패하면 앱은 살리고 JSON으로 알림
+            return ok({"error": "docker_stats_import_failed", "detail": str(_DOCKER_INIT_ERR)})
+        docker_collector.start_once()
+        cache = docker_collector.get_cached()
+        age = round(time.time() - (cache["ts"] or 0), 2)
+        return ok({"age_sec": age, "containers": cache["data"]})
     except Exception as e:
         return fail(str(e), 500)
     

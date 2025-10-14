@@ -5,7 +5,7 @@ import time
 import threading
 from typing import Any, Dict, List, Tuple
 import docker
-
+from docker.errors import DockerException
 
 class _DockerStatsCollector:
     """
@@ -21,17 +21,38 @@ class _DockerStatsCollector:
         self.label_key = os.getenv("LABEL_KEY", "")      # e.g. "com.mdbs.role"
         self.label_val = os.getenv("LABEL_VAL", "dbms")
 
-        self.client = docker.DockerClient(base_url=self.base_url)
+        #self.client = docker.DockerClient(base_url=self.base_url)
+        self.client = None # 처음에 바로 생성x
+
         self._cache: Dict[str, Any] = {"ts": 0.0, "data": []}
         self._started = False
         self._stop = False
         self._lock = threading.Lock()
+
+    def _ensure_client(self):
+        if self.client is not None:
+            return
+        # http+docker 어댑터 문제 등으로 실패해도 예외 올리게 둠(상위에서 잡음)
+        try:
+            self.client = docker.DockerClient(base_url=self.base_url)
+            self.client.ping()
+        except DockerException:
+            # 환경에 따라 from_env()가 더 잘 붙는 경우
+            self.client = docker.from_env()
+            self.client.ping()
 
     # ---------- public ----------
     def start_once(self):
         if self._started:
             return
         self._started = True
+        try:
+            self._ensure_client()
+        except Exception as e:
+            with self._lock:
+                self._cache["data"] = [{"error": f"docker_client_init_failed: {e}"}]
+                self._cache["ts"] = time.time()
+                
         t = threading.Thread(target=self._loop, daemon=True)
         t.start()
 
