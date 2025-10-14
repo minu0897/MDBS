@@ -6,22 +6,14 @@ import time
 from flask import Blueprint, request
 from utils.response import ok, fail
 
-# docker stat server 전용
-try:
-    from services.docker_stats_service import collector as docker_collector  # 도커 DBMS들 상태
-    _DOCKER_IMPORT_ERR = None
-except Exception as e:
-    docker_collector = None
-    _DOCKER_IMPORT_ERR = e
+# 전역 상태
+docker_collector = None
+_DOCKER_IMPORT_ERR = None
 
-
-sys_bp = Blueprint("system", __name__, url_prefix="/system") 
+sys_bp = Blueprint("system", __name__, url_prefix="/system")
 
 @sys_bp.get("/status")
 def status():
-    """
-    서버 간단 상태값: CPU, 메모리, 디스크, loadavg
-    """
     try:
         v = psutil.virtual_memory()
         d = psutil.disk_usage("/")
@@ -35,14 +27,19 @@ def status():
         })
     except Exception as e:
         return fail(str(e), 500)
-    
-# 처음 호출 시 수집기 시작, 캐시 반환
+
 @sys_bp.get("/docker/stats")
 def docker_stats():
+    """
+    Docker 컨테이너 리소스 즉시 1회 수집(가능하면) + 백그라운드 폴링 시작
+    - APP_PROFILE=dev  : 더미 응답
+    - APP_PROFILE=prod : 실제 수집
+    """
     try:
-        if os.getenv("APP_PROFILE", "dev").strip().lower() == 'dev':
+        if os.getenv("APP_PROFILE", "dev").strip().lower() == "dev":
             return ok({"age_sec": 111})
 
+        # 🔸 지연 import + 전역 상태 사용
         global docker_collector, _DOCKER_IMPORT_ERR
         if docker_collector is None and _DOCKER_IMPORT_ERR is None:
             try:
@@ -57,7 +54,7 @@ def docker_stats():
         # 백그라운드 시작
         docker_collector.start_once()
 
-        # 즉시 1회 동기 수집 시도 (성공 시 즉시 실제 데이터 반환)
+        # 🔸 동기 1회 시도(성공 시 바로 실제 데이터 반환)
         try:
             docker_collector._ensure_client()
             rows = docker_collector._collect_once()
@@ -72,14 +69,6 @@ def docker_stats():
 
 @sys_bp.post("/run-py")
 def run_py():
-    """
-    Body JSON:
-    {
-      "script": "demo_task.py",    # scripts/ 아래 파일명
-      "args": ["--msg","hello"],
-      "timeout": 60
-    }
-    """
     data = request.get_json(force=True) or {}
     script = data.get("script", "")
     args = [str(a) for a in data.get("args", [])]
@@ -87,35 +76,18 @@ def run_py():
     try:
         cmd = ["python", os.path.join("scripts", script)] + args
         proc = subprocess.run(cmd, timeout=timeout, capture_output=True, text=True)
-        return ok({
-            "returncode": proc.returncode,
-            "stdout": proc.stdout,
-            "stderr": proc.stderr
-        })
+        return ok({"returncode": proc.returncode, "stdout": proc.stdout, "stderr": proc.stderr})
     except Exception as e:
         return fail(str(e), 400)
 
 @sys_bp.post("/exec")
 def exec_cmd():
-    """
-    Body JSON:
-    {
-      "cmd": "ls",
-      "args": ["-la","."],
-      "timeout": 15
-    }
-    """
     data = request.get_json(force=True) or {}
     cmd = data.get("cmd", "")
     args = [str(a) for a in data.get("args", [])]
     timeout = int(data.get("timeout", 15))
     try:
-        # 보안 제한 없음(개발용). 운영에선 화이트리스트/권한 필수.
         proc = subprocess.run([cmd] + args, timeout=timeout, capture_output=True, text=True)
-        return ok({
-            "returncode": proc.returncode,
-            "stdout": proc.stdout,
-            "stderr": proc.stderr
-        })
+        return ok({"returncode": proc.returncode, "stdout": proc.stdout, "stderr": proc.stderr})
     except Exception as e:
         return fail(str(e), 400)
