@@ -9,10 +9,10 @@ from utils.response import ok, fail
 # docker stat server 전용
 try:
     from services.docker_stats_service import collector as docker_collector  # 도커 DBMS들 상태
-    _DOCKER_INIT_ERR = None
+    _DOCKER_IMPORT_ERR = None
 except Exception as e:
     docker_collector = None
-    _DOCKER_INIT_ERR = e
+    _DOCKER_IMPORT_ERR = e
 
 
 sys_bp = Blueprint("system", __name__, url_prefix="/system") 
