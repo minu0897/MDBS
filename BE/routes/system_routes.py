@@ -2,8 +2,11 @@
 import os
 import subprocess
 import psutil
+import time
 from flask import Blueprint, request
 from utils.response import ok, fail
+from services.docker_stats_service import collector as docker_collector #도커 DBMS들 상태
+
 
 sys_bp = Blueprint("system", __name__)
 
@@ -23,6 +26,29 @@ def status():
             "disk": {"total": d.total, "used": d.used, "percent": d.percent},
             "loadavg": {"1m": load[0], "5m": load[1], "15m": load[2]},
         })
+    except Exception as e:
+        return fail(str(e), 500)
+    
+# 처음 호출 시 수집기 시작, 캐시 반환
+@sys_bp.get("/docker/stats")
+def docker_stats():
+    """
+    Docker 컨테이너 실시간 리소스: CPU%, MEM(bytes/limit/%), Net/Block IO 합산
+    환경변수:
+      - DOCKER_SOCK=unix://var/run/docker.sock
+      - STATS_POLL_SEC=2
+      - NAME_FILTER=mysql|postgres|oracle|mongo|mongod
+      - LABEL_KEY=com.mdbs.role
+      - LABEL_VAL=dbms
+    """
+    try:
+        if os.getenv("APP_PROFILE", "dev").strip().lower() == 'dev':
+            return ok({"age_sec": 111})
+
+        docker_collector.start_once()
+        cache = docker_collector.get_cached()
+        age = round(time.time() - (cache["ts"] or 0), 2)
+        return ok({"age_sec": age, "containers": cache["data"]})
     except Exception as e:
         return fail(str(e), 500)
 
