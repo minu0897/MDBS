@@ -21,13 +21,19 @@ services:
     build:
       context: ..
       dockerfile: Docker/fe.dockerfile
+    env_file: ../FE/.env.dev
     environment:
-      NEXT_PUBLIC_API_BASE_URL: "http://localhost:5000"
-      WATCHPACK_POLLING: "true"   # 도커 파일감지 안정화(Next)
+      WATCHPACK_POLLING: "true"   
     ports:
       - "5173:5173"
     volumes:
       - ../FE:/app
-      - /app/node_modules
     depends_on:
       - api
+    command: >
+      sh -lc "
+        if [ ! -d node_modules ] || ! cmp -s package-lock.json .deps_ok; then
+          echo '→ installing deps...'; npm ci && cp package-lock.json .deps_ok;
+        fi;
+        npm run dev
+      "

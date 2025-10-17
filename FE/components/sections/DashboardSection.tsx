@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Database, Server, Activity, Zap, Play, Square, RotateCcw } from "lucide-react"
 import { ResponsiveContainer, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, Area } from "recharts"
-import type { ConnectionItem, PerformancePoint, ServerStates, DBKey, ServerStatus } from "@/lib/types"
+import type { ConnectionItem, PerformancePoint, ServerStates, DBKey } from "@/lib/types"
 
 type Props = {
   serverStates: ServerStates
@@ -19,6 +19,7 @@ export default function DashboardSection({
   performanceData,
   connectionData,
 }: Props) {
+
   return (
     <>
       {/* Server Control Board */}
@@ -172,7 +173,7 @@ export default function DashboardSection({
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Redis</p>
+                <p className="text-sm font-medium text-muted-foreground">Oracle</p>
                 <p className="text-2xl font-bold text-card-foreground">Active</p>
                 <p className="text-xs text-muted-foreground">15 connections</p>
               </div>
@@ -205,7 +206,7 @@ export default function DashboardSection({
                   <Area type="monotone" dataKey="mysql" stackId="1" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.6} />
                   <Area type="monotone" dataKey="postgresql" stackId="1" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.6} />
                   <Area type="monotone" dataKey="mongodb" stackId="1" stroke="hsl(var(--chart-3))" fill="hsl(var(--chart-3))" fillOpacity={0.6} />
-                  <Area type="monotone" dataKey="redis" stackId="1" stroke="hsl(var(--chart-4))" fill="hsl(var(--chart-4))" fillOpacity={0.6} />
+                  <Area type="monotone" dataKey="oracle" stackId="1" stroke="hsl(var(--chart-4))" fill="hsl(var(--chart-4))" fillOpacity={0.6} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -269,10 +270,10 @@ export default function DashboardSection({
             </div>
             <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
               <div className="flex items-center space-x-3">
-                <Badge variant="secondary" className="bg-orange-100 text-orange-700">Redis</Badge>
-                <code className="text-sm">GET user:session:12345</code>
+                <Badge variant="secondary" className="bg-orange-100 text-orange-700">Oracle</Badge>
+                <code className="text-sm">SELECT * FROM accounts WHERE balance &gt; 1000</code>
               </div>
-              <div className="text-sm text-muted-foreground">0.8ms</div>
+              <div className="text-sm text-muted-foreground">3.2ms</div>
             </div>
           </div>
         </CardContent>
