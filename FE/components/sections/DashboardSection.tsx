@@ -11,6 +11,7 @@ type Props = {
   onServerAction: (server: DBKey, action: "start" | "stop" | "restart") => void
   performanceData: PerformancePoint[]
   connectionData: ConnectionItem[]
+  isLoading?: boolean
 }
 
 export default function DashboardSection({
@@ -18,10 +19,24 @@ export default function DashboardSection({
   onServerAction,
   performanceData,
   connectionData,
+  isLoading = false,
 }: Props) {
 
+
   return (
-    <>
+    <div className="relative">
+      {/* Loading Overlay */}
+      {isLoading && (
+        <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-50 flex items-center justify-center rounded-lg">
+          <div className="bg-card border border-border rounded-lg p-6 shadow-lg">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-3"></div>
+            <p className="text-card-foreground font-medium">데이터 로딩 중...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content */}
+      <>
       {/* Server Control Board */}
       <Card className="bg-card border-border mb-6">
         <CardHeader>
@@ -115,77 +130,32 @@ export default function DashboardSection({
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <Card className="bg-card border-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">MySQL</p>
-                <p className="text-2xl font-bold text-card-foreground">Active</p>
-                <p className="text-xs text-muted-foreground">45 connections</p>
-              </div>
-              <div className="h-12 w-12 rounded-lg bg-blue-100 flex items-center justify-center">
-                <Database className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-            <div className="mt-4">
-              <Progress value={45} className="h-2" />
-            </div>
-          </CardContent>
-        </Card>
+        {connectionData.map((db, index) => {
+          const icons = [Database, Server, Activity, Zap]
+          const bgColors = ["bg-blue-100", "bg-indigo-100", "bg-green-100", "bg-orange-100"]
+          const iconColors = ["text-blue-600", "text-indigo-600", "text-green-600", "text-orange-600"]
+          const Icon = icons[index] || Database
 
-        <Card className="bg-card border-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">PostgreSQL</p>
-                <p className="text-2xl font-bold text-card-foreground">Active</p>
-                <p className="text-xs text-muted-foreground">32 connections</p>
-              </div>
-              <div className="h-12 w-12 rounded-lg bg-indigo-100 flex items-center justify-center">
-                <Server className="h-6 w-6 text-indigo-600" />
-              </div>
-            </div>
-            <div className="mt-4">
-              <Progress value={32} className="h-2" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">MongoDB</p>
-                <p className="text-2xl font-bold text-card-foreground">Active</p>
-                <p className="text-xs text-muted-foreground">28 connections</p>
-              </div>
-              <div className="h-12 w-12 rounded-lg bg-green-100 flex items-center justify-center">
-                <Activity className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-            <div className="mt-4">
-              <Progress value={28} className="h-2" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Oracle</p>
-                <p className="text-2xl font-bold text-card-foreground">Active</p>
-                <p className="text-xs text-muted-foreground">15 connections</p>
-              </div>
-              <div className="h-12 w-12 rounded-lg bg-orange-100 flex items-center justify-center">
-                <Zap className="h-6 w-6 text-orange-600" />
-              </div>
-            </div>
-            <div className="mt-4">
-              <Progress value={15} className="h-2" />
-            </div>
-          </CardContent>
-        </Card>
+          return (
+            <Card key={db.name} className="bg-card border-border">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground capitalize">{db.name}</p>
+                    <p className="text-2xl font-bold text-card-foreground">Active</p>
+                    <p className="text-xs text-muted-foreground">{db.connections} connections</p>
+                  </div>
+                  <div className={`h-12 w-12 rounded-lg ${bgColors[index]} flex items-center justify-center`}>
+                    <Icon className={`h-6 w-6 ${iconColors[index]}`} />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <Progress value={(db.connections / db.maxConnections) * 100} className="h-2" />
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
 
       {/* Chart + Connection Status */}
@@ -279,5 +249,6 @@ export default function DashboardSection({
         </CardContent>
       </Card>
     </>
+    </div>
   )
 }

@@ -25,17 +25,27 @@ import QueryExecutorSection from "@/components/sections/QueryExecutorSection"
 import PerformanceMonitorSection from "@/components/sections/PerformanceMonitorSection"
 import type { ServerStates, DockerStatsResponse, DBKey, ServerStatus } from "@/lib/types"
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
+const API_BASE = "http://localhost:5000";
+const API_BASE_server = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
 
 
 const fetcher = () =>
-  fetch(`${API_BASE}/system/docker/stats`).then((r) => {
+  fetch(`${API_BASE_server}/system/docker/stats`).then((r) => {
     if (!r.ok) throw new Error("Failed to fetch");
     return r.json();
   }).then((response) => {
     // API 응답이 { data: { containers: [...], ok: true } } 형태
     const data = response.data;
     return data;
+  })
+
+const connCountFetcher = () =>
+  fetch(`${API_BASE}/system/conn-counts`).then((r) => {
+    if (!r.ok) throw new Error("Failed to fetch");
+    return r.json();
+  }).then((response) => {
+    // API 응답이 { data: [...], ok: true } 형태
+    return response.data;
   })
 
 // Docker stats를 ServerStates로 변환하는 함수
@@ -98,10 +108,19 @@ export default function Dashboard() {
   const [selectedDBMS, setSelectedDBMS] = useState<DBKey>("mysql")
 
   // 1) SWR 폴링으로 서버 상태 주기 업데이트
-  const { data, error, isValidating, mutate } = useSWR<DockerStatsResponse>("/api/servers", fetcher, {
+  const { data, error, isValidating, mutate, isLoading: isLoadingStats } = useSWR<DockerStatsResponse>("/system/docker/stats", fetcher, {
     refreshInterval: 3000, // 3초마다 재검증
     revalidateOnFocus: false,
   })
+
+  // 2) SWR 폴링으로 연결 수 주기 업데이트
+  const { data: connCountData, isLoading: isLoadingConnCount } = useSWR("/system/conn-counts", connCountFetcher, {
+    refreshInterval: 5000, // 5초마다 재검증
+    revalidateOnFocus: false,
+  })
+
+  // 로딩 상태 (최초 로딩 시에만 true)
+  const isLoading = isLoadingStats || isLoadingConnCount
 
   // 2) Docker stats를 ServerStates로 변환
   const serverStates = useMemo<ServerStates>(() => {
@@ -139,12 +158,36 @@ export default function Dashboard() {
     { name: "20:00", mysql: 150, postgresql: 140, mongodb: 120, oracle: 250 },
   ]
 
-  const connectionData = [
-    { name: "MySQL", connections: 45, maxConnections: 100, color: "hsl(var(--chart-1))" },
-    { name: "PostgreSQL", connections: 32, maxConnections: 100, color: "hsl(var(--chart-2))" },
-    { name: "MongoDB", connections: 28, maxConnections: 100, color: "hsl(var(--chart-3))" },
-    { name: "Oracle", connections: 15, maxConnections: 100, color: "hsl(var(--chart-4))" },
-  ]
+  // API에서 가져온 연결 수 데이터를 connectionData 형태로 변환
+  const connectionData = useMemo(() => {
+    const defaultData = [
+      { name: "mysql", connections: 0, maxConnections: 100, color: "hsl(var(--chart-1))" },
+      { name: "postgres", connections: 0, maxConnections: 100, color: "hsl(var(--chart-2))" },
+      { name: "mongo", connections: 0, maxConnections: 100, color: "hsl(var(--chart-3))" },
+      { name: "oracle", connections: 0, maxConnections: 100, color: "hsl(var(--chart-4))" },
+    ]
+
+    if (!connCountData || !Array.isArray(connCountData)) {
+      return defaultData
+    }
+
+    // DBMS 이름 매핑
+    const dbmsMap: Record<string, number> = {
+      mysql: 0,
+      postgres: 1,
+      mongodb: 2,
+      oracle: 3,
+    }
+
+    connCountData.forEach((item: any) => {
+      const dbms = item.dbms?.toLowerCase()
+      const index = dbmsMap[dbms]
+      if (index !== undefined && item.sessions !== undefined) {
+        defaultData[index].connections = item.sessions
+      }
+    })
+    return defaultData
+  }, [connCountData])
 
   return (
     <div className="flex h-screen bg-background">
@@ -321,6 +364,7 @@ export default function Dashboard() {
               onServerAction={handleServerAction}
               performanceData={performanceData}
               connectionData={connectionData}
+              isLoading={isLoading}
             />
           )}
           {activeSection === "server-control" && <ServerControlSection serverStates={serverStates} />}

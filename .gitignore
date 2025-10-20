@@ -1,6 +1,9 @@
 #환경설정파일
 /DOC/환경설정.txt
 
+# Claude Code
+.claude/
+
 # env & secrets
 *.env
 .env.*

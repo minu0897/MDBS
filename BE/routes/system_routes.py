@@ -54,7 +54,7 @@ def docker_stats():
         # 백그라운드 시작
         docker_collector.start_once()
 
-        # 🔸 동기 1회 시도(성공 시 바로 실제 데이터 반환)
+        # 동기 1회 시도(성공 시 바로 실제 데이터 반환)
         try:
             docker_collector._ensure_client()
             rows = docker_collector._collect_once()
@@ -91,3 +91,16 @@ def exec_cmd():
         return ok({"returncode": proc.returncode, "stdout": proc.stdout, "stderr": proc.stderr})
     except Exception as e:
         return fail(str(e), 400)
+
+@sys_bp.get("/conn-counts")
+def db_conn_counts():
+    from services.db_conn_count_service import get_all_dbms_session_counts as gather_conn_counts
+
+    """
+    각 DBMS 현재 커넥션 수 요약
+    """
+    try:
+        data = gather_conn_counts()
+        return ok(data)
+    except Exception as e:
+        return fail(str(e), 500)
