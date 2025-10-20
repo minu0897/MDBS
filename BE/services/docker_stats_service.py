@@ -1,6 +1,7 @@
 # BE/services/docker_stats_service.py
 import os, re, time, threading
 from typing import Any, Dict, List, Tuple
+from urllib.parse import quote_plus
 
 # SDK 경로
 import docker
@@ -106,7 +107,6 @@ class _DockerStatsCollector:
 
         # 2) REST Fallback (requests_unixsocket)
         if UnixAdapter is None:
-            # 캐시에 실패 이유 저장
             with self._lock:
                 self._cache["data"] = [{
                     "error": "docker_client_init_failed",
@@ -116,13 +116,15 @@ class _DockerStatsCollector:
             raise RuntimeError("requests-unixsocket not available")
 
         s = requests.Session()
-        s.mount("http+docker://", UnixAdapter(self.sock_path))
+        s.mount("http+unix://", UnixAdapter())  # ❗️인자 없음
+        base = f"http+unix://{quote_plus(self.sock_path)}"  # ex) http+unix://%2Fvar%2Frun%2Fdocker.sock
         try:
-            r = s.get("http+docker://localhost/_ping", timeout=2)
+            r = s.get(f"{base}/_ping", timeout=2)
             ok = (r.status_code == 200 and r.text.strip().upper() == "OK")
             if not ok:
                 raise RuntimeError(f"_ping failed: {r.status_code} {r.text}")
             self._sess = s
+            self._rest_base = base  # 나중에 재사용
         except Exception as e2:
             with self._lock:
                 self._cache["data"] = [{
@@ -208,7 +210,10 @@ class _DockerStatsCollector:
             return self._cache["data"] or [{"error": "docker_client_not_ready"}]
 
         rows: List[Dict[str, Any]] = []
-        r = self._sess.get("http+docker://localhost/containers/json?all=1", timeout=3)
+        base = getattr(self, "_rest_base", f"http+unix://{quote_plus(self.sock_path)}")
+
+        # 1) 컨테이너 목록
+        r = self._sess.get(f"{base}/containers/json?all=1", timeout=3)
         r.raise_for_status()
         containers = r.json()
 
@@ -216,7 +221,6 @@ class _DockerStatsCollector:
             name = (c.get("Names") or [""])[0].lstrip("/") if c.get("Names") else c.get("Id")[:12]
             if not self._match_name(name):
                 continue
-            # 라벨 필터
             labels = c.get("Labels", {}) or {}
             if not self._match_labels(labels):
                 continue
@@ -225,7 +229,7 @@ class _DockerStatsCollector:
             image = c.get("Image")
             state = c.get("State")
             try:
-                r2 = self._sess.get(f"http+docker://localhost/containers/{cid}/stats?stream=false", timeout=3)
+                r2 = self._sess.get(f"{base}/containers/{cid}/stats?stream=false", timeout=3)
                 r2.raise_for_status()
                 stat = r2.json()
                 cpu = round(_cpu_percent(stat), 2)

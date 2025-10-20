@@ -36,10 +36,7 @@ def docker_stats():
     - APP_PROFILE=prod : 실제 수집
     """
     try:
-        if os.getenv("APP_PROFILE", "dev").strip().lower() == "dev":
-            return ok({"age_sec": 111})
-
-        # 🔸 지연 import + 전역 상태 사용
+        # 지연 import + 전역 상태 사용
         global docker_collector, _DOCKER_IMPORT_ERR
         if docker_collector is None and _DOCKER_IMPORT_ERR is None:
             try:
