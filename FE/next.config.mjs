@@ -10,7 +10,7 @@ export default {
         assetPrefix: '/mdbs/',
         trailingSlash: true,
         images: { unoptimized: true },
-        // 필요할 때만 켜세요: output: 'export',
+        output: 'export',
       }
     : {}),
 };
