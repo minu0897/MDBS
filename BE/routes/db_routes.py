@@ -42,17 +42,31 @@ def proc_exec():
         dbms = (d.get("dbms") or "").lower()
         name = d["name"]
         args = d.get("args", []) or []
+        out_names = d.get("out_names")  # 예: ["txn_id", "status"]
         adapter = get_adapter(dbms)
+
+        result = None
 
         if dbms == "postgres":
             # FUNCTION 결과셋: SELECT * FROM func(...)
             # PROCEDURE: CALL proc(...)
             mode = (d.get("mode") or "proc").lower()
             if mode == "func":
-                rows = adapter.call_function(name, args)
+                result = adapter.call_function(name, args)
             else:
-                rows = adapter.call_procedure(name, args)
-            return ok(rows)
+                result = adapter.call_procedure(name, args)
+
+            # PostgreSQL 정규화: [{"p_txn_id": 123, "p_status": "1"}] → {"txn_id": 123, "status": "1"}
+            if out_names and isinstance(result, list) and len(result) > 0:
+                first_row = result[0]
+                normalized = {}
+                # 컬럼 이름에서 'p_' 접두사를 제거하고 매핑
+                for key, value in first_row.items():
+                    clean_key = key.replace('p_', '') if key.startswith('p_') else key
+                    normalized[clean_key] = value
+                return ok(normalized)
+
+            return ok(result)
 
         if dbms == "oracle":
             # ★ 추가: out_count / out_types / timeout_ms 전달
@@ -61,19 +75,41 @@ def proc_exec():
 
             out_spec = d.get("out")
             if out_spec:
-                rows = adapter.call_procedure_with_cursor(name, args, out_spec=out_spec)
+                result = adapter.call_procedure_with_cursor(name, args, out_spec=out_spec)
             else:
-                rows = adapter.call_procedure(
+                result = adapter.call_procedure(
                     name,
                     args,
                     out_count=out_count,
                     out_types=out_types
                 )
-            return ok(rows)
+
+            # Oracle 정규화: {"out": [123, "1"], "all": [...]} → {"txn_id": 123, "status": "1"}
+            if out_names and isinstance(result, dict) and "out" in result:
+                out_values = result["out"]
+                normalized = {}
+                for i, name_key in enumerate(out_names):
+                    if i < len(out_values):
+                        normalized[name_key] = out_values[i]
+                return ok(normalized)
+
+            return ok(result)
+
         if dbms == "mysql":
             out_count = int(d.get("out_count", 0))
-            res = adapter.call_procedure(name, args, out_count=out_count)  # ← 반드시 전달
-            return ok(res)
+            result = adapter.call_procedure(name, args, out_count=out_count)
+
+            # MySQL 정규화: {"resultset": ..., "out": {"out0": 123, "out1": "1"}} → {"txn_id": 123, "status": "1"}
+            if out_names and isinstance(result, dict) and "out" in result and result["out"]:
+                out_dict = result["out"]
+                normalized = {}
+                for i, name_key in enumerate(out_names):
+                    out_key = f"out{i}"
+                    if out_key in out_dict:
+                        normalized[name_key] = out_dict[out_key]
+                return ok(normalized)
+
+            return ok(result)
 
     except Exception as e:
         return fail(str(e), 400)
