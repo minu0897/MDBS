@@ -58,7 +58,8 @@ BEGIN
 
     p_status := '2';
     p_result := 'OK';
-    RETURN;
+
+    RETURN QUERY SELECT p_status, p_txn_id, p_result;
   END IF;
 END;
 $$;

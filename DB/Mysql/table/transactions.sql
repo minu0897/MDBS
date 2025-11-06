@@ -11,8 +11,6 @@ CREATE TABLE `transactions` (
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`txn_id`),
-  UNIQUE KEY `ux_txn_idemp` (`idempotency_key`),
-  KEY `fk_txn_src` (`src_account_id`),
-  CONSTRAINT `fk_txn_src` FOREIGN KEY (`src_account_id`) REFERENCES `accounts` (`account_id`)
+  UNIQUE KEY `ux_txn_idemp` (`idempotency_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
 

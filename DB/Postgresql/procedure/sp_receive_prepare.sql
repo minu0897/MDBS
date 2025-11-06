@@ -37,6 +37,6 @@ BEGIN
     UPDATE transactions SET status = p_status WHERE txn_id = p_txn_id;
   END IF;
 
-  RETURN;
+  RETURN QUERY SELECT p_status, p_txn_id;
 END;
 $$;

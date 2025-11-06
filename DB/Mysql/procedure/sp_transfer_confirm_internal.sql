@@ -33,7 +33,7 @@ PROC:BEGIN
     WHERE idempotency_key = p_idempotency_key
     FOR UPDATE;
 
-    IF v_hstat = '2' THEN -- 2: 확정정
+    IF v_hstat = '2' THEN -- 2: 확정
         -- 이미 확정 완료
         COMMIT;
         LEAVE proc;

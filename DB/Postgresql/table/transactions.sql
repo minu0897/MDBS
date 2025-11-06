@@ -9,6 +9,5 @@ CREATE TABLE transactions (
   amount          NUMERIC(19,4) NOT NULL,
   idempotency_key VARCHAR(100) NOT NULL UNIQUE,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  FOREIGN KEY (src_account_id) REFERENCES accounts(account_id)
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );

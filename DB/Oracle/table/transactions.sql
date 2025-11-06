@@ -10,6 +10,5 @@ CREATE TABLE transactions (
   idempotency_key VARCHAR2(100) NOT NULL,
   created_at      TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
   updated_at      TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
-  CONSTRAINT fk_txn_src FOREIGN KEY (src_account_id) REFERENCES accounts(account_id),
   CONSTRAINT ux_txn_idemp UNIQUE (idempotency_key)
 );
