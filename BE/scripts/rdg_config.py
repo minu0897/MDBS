@@ -30,11 +30,11 @@ BASE_URL = os.getenv("BASE_URL", "http://localhost:5000")
 # 초당 생성할 거래 수 (Requests Per Second)
 # 예: RPS=10 → 초당 10개의 거래 생성
 #RPS = 5
-RPS = 2
+RPS = 3
 # 동시 처리 제한
 # 동시에 처리할 수 있는 최대 연결 수
 #CONCURRENT_LIMIT = 30
-CONCURRENT_LIMIT = 4
+CONCURRENT_LIMIT = 5
 
 # ==================== DBMS 설정 ====================
 # 활성화할 DBMS 리스트

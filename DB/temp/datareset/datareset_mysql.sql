@@ -1,12 +1,12 @@
-update accounts
-set balance = 0, hold_amount = 0 
+UPDATE MDBS.accounts
+set balance = 0, hold_amount = 0; 
 
-update accounts
+update MDBS.accounts
 set balance = 100000000
-where account_id = 200001 or account_id = 200101
+where account_id = 200001 or account_id = 200101;
 
-delete from holds
+delete from MDBS.holds;
 
-delete from ledger_entries
+delete from MDBS.ledger_entries;
 
-delete from  transactions
+delete from  MDBS.transactions;

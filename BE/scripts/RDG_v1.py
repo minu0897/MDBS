@@ -130,7 +130,7 @@ class RandomDataGenerator:
         예: mongo(1) + 795 → 100795
         """
         bank_code = self.BANK_CODE_MAP.get(dbms, 1)
-        random_num = random.randint(0, 795)
+        random_num = random.randint(1, 795)
         # 은행구분(1자리) + 랜덤값을 5자리로 제로패딩
         account_number = bank_code * 100000 + random_num
         return account_number
@@ -389,9 +389,9 @@ class TransactionProcessor:
         idem_key = tx_data["idempotency_key"]
 
         # 송금측 멱등키 (송금)
-        idem_key_debit = f"{idem_key}_debit"
+        idem_key_debit = f"{idem_key}"
         # 수취측 멱등키 (수금)
-        idem_key_credit = f"{idem_key}_credit"
+        idem_key_credit = f"{idem_key}"
 
         # 도착 은행 코드 (수취 계좌의 은행 코드)
         dst_bank = str(dst_account // 100000)

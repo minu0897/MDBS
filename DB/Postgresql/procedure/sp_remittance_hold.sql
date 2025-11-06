@@ -39,6 +39,7 @@ BEGIN
 
     -- 결과 한 행을 실제로 내보내기
     RETURN QUERY SELECT p_txn_id, p_status;
+    RETURN;
   END IF;
 
   -- 3) holds 멱등 + hold 증가
