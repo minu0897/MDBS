@@ -232,20 +232,33 @@ class APIClient:
             # OUT 자리에 None 추가 (Oracle adapter가 이 자리를 OUT 변수로 바인딩)
             payload["args"] = args + [None] * out_count
 
-        try:
-            async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                result = await resp.json()
-                if resp.status >= 200 and resp.status < 300:
-                    return result.get("data")
-                else:
-                    logger.error(f"API 에러 [{dbms}/{proc_name}]: {result}")
+        # 재시도 로직 (ConnectionError, ContentLengthError 대응)
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    result = await resp.json()
+                    if resp.status >= 200 and resp.status < 300:
+                        return result.get("data")
+                    else:
+                        logger.error(f"API 에러 [{dbms}/{proc_name}]: {result}")
+                        return None
+            except asyncio.TimeoutError:
+                logger.error(f"타임아웃 [{dbms}/{proc_name}] (시도 {attempt + 1}/{max_retries})")
+                if attempt == max_retries - 1:
                     return None
-        except asyncio.TimeoutError:
-            logger.error(f"타임아웃 [{dbms}/{proc_name}]")
-            return None
-        except Exception as e:
-            logger.error(f"예외 발생 [{dbms}/{proc_name}]: {e}")
-            return None
+            except (aiohttp.ClientPayloadError, aiohttp.ClientConnectionError, ConnectionResetError) as e:
+                # 네트워크 오류: 재시도 가능
+                logger.warning(f"네트워크 오류 [{dbms}/{proc_name}] (시도 {attempt + 1}/{max_retries}): {e}")
+                if attempt == max_retries - 1:
+                    logger.error(f"최종 실패 [{dbms}/{proc_name}]: {e}")
+                    return None
+                await asyncio.sleep(0.5)  # 재시도 전 잠깐 대기
+            except Exception as e:
+                logger.error(f"예외 발생 [{dbms}/{proc_name}]: {e}")
+                return None
+
+        return None
 
     async def call_mongo_procedure(
         self,
@@ -256,20 +269,33 @@ class APIClient:
         """MongoDB 프로시저 호출"""
         url = f"{self.base_url}/mongo_proc/{operation}"
 
-        try:
-            async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                result = await resp.json()
-                if resp.status >= 200 and resp.status < 300:
-                    return result.get("data")
-                else:
-                    logger.error(f"API 에러 [mongo/{operation}]: {result}")
+        # 재시도 로직 (ConnectionError, ContentLengthError 대응)
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    result = await resp.json()
+                    if resp.status >= 200 and resp.status < 300:
+                        return result.get("data")
+                    else:
+                        logger.error(f"API 에러 [mongo/{operation}]: {result}")
+                        return None
+            except asyncio.TimeoutError:
+                logger.error(f"타임아웃 [mongo/{operation}] (시도 {attempt + 1}/{max_retries})")
+                if attempt == max_retries - 1:
                     return None
-        except asyncio.TimeoutError:
-            logger.error(f"타임아웃 [mongo/{operation}]")
-            return None
-        except Exception as e:
-            logger.error(f"예외 발생 [mongo/{operation}]: {e}")
-            return None
+            except (aiohttp.ClientPayloadError, aiohttp.ClientConnectionError, ConnectionResetError) as e:
+                # 네트워크 오류: 재시도 가능
+                logger.warning(f"네트워크 오류 [mongo/{operation}] (시도 {attempt + 1}/{max_retries}): {e}")
+                if attempt == max_retries - 1:
+                    logger.error(f"최종 실패 [mongo/{operation}]: {e}")
+                    return None
+                await asyncio.sleep(0.5)  # 재시도 전 잠깐 대기
+            except Exception as e:
+                logger.error(f"예외 발생 [mongo/{operation}]: {e}")
+                return None
+
+        return None
 
 # ==================== 거래 처리기 ====================
 class TransactionProcessor:
@@ -344,6 +370,10 @@ class TransactionProcessor:
 
         if not result or result.get("status") != "1":
             logger.warning(f"  [{idem_key}] 송금 보류 실패: {result}")
+            # 타임아웃(result=None) 시 DB에 Hold가 생성되었을 가능성이 있으므로 Release 시도
+            if result is None:
+                logger.info(f"  [{idem_key}] 타임아웃 감지 - Hold 해제 시도 ({dbms})")
+                await self._release_hold(session, dbms, idem_key)
             return False
 
         # Step 2: 이체 확정
@@ -425,6 +455,10 @@ class TransactionProcessor:
 
         if not result or result.get("status") != "1":
             logger.warning(f"  [{idem_key}] 송금 보류 실패: {result}")
+            # 타임아웃(result=None) 시 DB에 Hold가 생성되었을 가능성이 있으므로 Release 시도
+            if result is None:
+                logger.info(f"  [{idem_key}] 타임아웃 감지 - Hold 해제 시도 ({src_dbms})")
+                await self._release_hold(session, src_dbms, idem_key_debit)
             return False
 
         # Step 2: 수금 준비 (수취측 DBMS)

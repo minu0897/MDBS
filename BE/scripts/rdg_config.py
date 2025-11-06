@@ -29,12 +29,14 @@ BASE_URL = os.getenv("BASE_URL", "http://localhost:5000")
 # ==================== 성능 설정 ====================
 # 초당 생성할 거래 수 (Requests Per Second)
 # 예: RPS=10 → 초당 10개의 거래 생성
+# 네트워크 오류 발생 시 RPS와 CONCURRENT_LIMIT를 낮추세요
+RPS = 3  # 권장: 3-5 (네트워크 안정성에 따라 조정)
 #RPS = 5
-RPS = 3
 # 동시 처리 제한
 # 동시에 처리할 수 있는 최대 연결 수
+# 서버 과부하 방지를 위해 낮은 값 권장
+CONCURRENT_LIMIT = 10  # 권장: 5-15 (서버 부하에 따라 조정)
 #CONCURRENT_LIMIT = 30
-CONCURRENT_LIMIT = 5
 
 # ==================== DBMS 설정 ====================
 # 활성화할 DBMS 리스트
@@ -72,7 +74,7 @@ ALLOW_SAME_DB = True
 # "DEBUG": 모든 상세 로그 출력
 # "INFO": 일반 정보 로그 출력
 # "WARNING": 경고 및 에러만 출력
-LOG_LEVEL = "DEBUG"
+LOG_LEVEL = "INFO"
 
 # 로그 파일 경로
 LOG_FILE = "rdg_v1.log"
@@ -86,4 +88,4 @@ DURATION = None
 
 # 통계 출력 주기 (초)
 # 예: STATS_INTERVAL = 10 → 10초마다 통계 출력
-STATS_INTERVAL = 10
+STATS_INTERVAL = 20

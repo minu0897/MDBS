@@ -60,4 +60,3 @@ BEGIN
    WHERE account_id = p_src_account_id;
 
 END;
-/
