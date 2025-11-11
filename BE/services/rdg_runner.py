@@ -126,11 +126,17 @@ class RDGRunner:
 
     def status(self) -> Dict:
         """RDG 상태 및 통계 조회"""
-        running = self.is_running()
+        # subprocess로 시작한 프로세스 체크
+        process_running = self.is_running()
+
+        # 외부에서 실행된 run_rdg.py 프로세스 체크
+        external_running = self._check_external_process()
+
+        running = process_running or external_running
         cfg = self._cfg.__dict__ if self._cfg else None
 
-        # 로그 파일에서 통계 파싱
-        stats = self._parse_log_stats() if running else self._get_empty_stats()
+        # 로그 파일에서 통계 파싱 (running 여부와 관계없이 시도)
+        stats = self._parse_log_stats()
 
         return {
             "running": running,
@@ -138,6 +144,26 @@ class RDGRunner:
             "stats": stats,
             "base_url": self._cfg.base_url if self._cfg else None
         }
+
+    def _check_external_process(self) -> bool:
+        """외부에서 실행된 run_rdg.py 프로세스 확인"""
+        try:
+            import psutil
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    cmdline = proc.info.get('cmdline', [])
+                    if cmdline and 'run_rdg.py' in ' '.join(cmdline):
+                        return True
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            return False
+        except:
+            # psutil 없으면 ps 명령어 사용 (Linux/Unix)
+            try:
+                result = os.popen('ps aux | grep "[r]un_rdg.py"').read()
+                return bool(result.strip())
+            except:
+                return False
 
     def is_running(self) -> bool:
         """RDG 프로세스 실행 여부 확인"""
