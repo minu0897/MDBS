@@ -175,7 +175,11 @@ class RDGRunner:
 
     def _parse_log_stats(self) -> Dict:
         """로그 파일에서 통계 파싱"""
+        print(f"[DEBUG] Looking for log file at: {self.log_file}")
+        print(f"[DEBUG] Log file exists: {self.log_file.exists()}")
+
         if not self.log_file.exists():
+            print(f"[DEBUG] Log file not found, returning empty stats")
             return self._get_empty_stats()
 
         try:
@@ -203,6 +207,8 @@ class RDGRunner:
             success_rate = 0.0
             uptime_sec = 0.0
 
+            print(f"[DEBUG] Found {len(stats_block)} lines in stats block")
+
             for line in stats_block:
                 # 경과 시간: 120.50초
                 if match := re.search(r'경과 시간:\s*([\d.]+)초', line):
@@ -216,6 +222,8 @@ class RDGRunner:
                 elif match := re.search(r'실제 RPS:\s*([\d.]+)\s*\|\s*성공률:\s*([\d.]+)%', line):
                     actual_rps = float(match.group(1))
                     success_rate = float(match.group(2))
+
+            print(f"[DEBUG] Parsed stats: sent={sent}, success={success}, fail={fail}")
 
             return {
                 "uptime_sec": uptime_sec,
