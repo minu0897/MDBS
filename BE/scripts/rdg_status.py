@@ -16,10 +16,8 @@ import json
 import argparse
 from pathlib import Path
 
-# services 모듈을 import하기 위해 부모 디렉토리를 path에 추가
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from services.rdg_runner import runner
+# 로그 파일 경로
+LOG_FILE = Path(__file__).parent / "rdg_v1.log"
 
 def format_uptime(seconds):
     """초를 사람이 읽기 쉬운 형태로 변환"""
@@ -87,6 +85,73 @@ def print_stats(status_data, as_json=False):
 
     print("=" * 60 + "\n")
 
+def parse_log_file():
+    """로그 파일에서 직접 통계 파싱"""
+    if not LOG_FILE.exists():
+        return None
+
+    try:
+        with open(LOG_FILE, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+
+        # 마지막 통계 블록 찾기 (역순으로 검색)
+        stats_block = []
+        found_separator = False
+
+        for line in reversed(lines):
+            if '=' * 60 in line:
+                if found_separator:
+                    break
+                found_separator = True
+            elif found_separator:
+                stats_block.insert(0, line)
+
+        if not stats_block:
+            return None
+
+        # 통계 파싱
+        stats = {
+            'uptime_sec': 0.0,
+            'sent': 0,
+            'ok': 0,
+            'fail': 0,
+            'actual_rps': 0.0,
+            'success_rate': 0.0
+        }
+
+        for line in stats_block:
+            # 경과 시간: 120.50초
+            if match := re.search(r'경과 시간:\s*([\d.]+)초', line):
+                stats['uptime_sec'] = float(match.group(1))
+            # 전송: 1205 | 성공: 1198 | 실패: 7
+            elif match := re.search(r'전송:\s*(\d+)\s*\|\s*성공:\s*(\d+)\s*\|\s*실패:\s*(\d+)', line):
+                stats['sent'] = int(match.group(1))
+                stats['ok'] = int(match.group(2))
+                stats['fail'] = int(match.group(3))
+            # 실제 RPS: 10.04 | 성공률: 99.42%
+            elif match := re.search(r'실제 RPS:\s*([\d.]+)\s*\|\s*성공률:\s*([\d.]+)%', line):
+                stats['actual_rps'] = float(match.group(1))
+                stats['success_rate'] = float(match.group(2))
+
+        # 프로세스 실행 여부 확인 (ps 명령어 사용)
+        running = False
+        try:
+            result = os.popen('ps aux | grep "[r]un_rdg.py"').read()
+            running = bool(result.strip())
+        except:
+            pass
+
+        return {
+            'running': running,
+            'cfg': None,
+            'stats': stats,
+            'base_url': None
+        }
+
+    except Exception as e:
+        print(f"Error parsing log: {e}")
+        return None
+
 def watch_stats(interval=5, as_json=False):
     """실시간 통계 모니터링"""
     print("🔄 실시간 모니터링 시작 (Ctrl+C로 종료)\n")
@@ -98,7 +163,23 @@ def watch_stats(interval=5, as_json=False):
             elif not as_json:
                 os.system('clear')
 
-            status_data = runner.status()
+            status_data = parse_log_file()
+            if not status_data:
+                status_data = {
+                    'running': False,
+                    'cfg': None,
+                    'stats': {
+                        'uptime_sec': 0,
+                        'sent': 0,
+                        'ok': 0,
+                        'fail': 0,
+                        'success_rate': 0.0,
+                        'actual_rps': 0.0,
+                        'avg_latency_ms': 0.0,
+                        'in_flight': 0
+                    },
+                    'base_url': None
+                }
             print_stats(status_data, as_json)
 
             if not as_json:
@@ -133,7 +214,23 @@ def main():
     if args.watch:
         watch_stats(args.interval, args.json)
     else:
-        status_data = runner.status()
+        status_data = parse_log_file()
+        if not status_data:
+            status_data = {
+                'running': False,
+                'cfg': None,
+                'stats': {
+                    'uptime_sec': 0,
+                    'sent': 0,
+                    'ok': 0,
+                    'fail': 0,
+                    'success_rate': 0.0,
+                    'actual_rps': 0.0,
+                    'avg_latency_ms': 0.0,
+                    'in_flight': 0
+                },
+                'base_url': None
+            }
         print_stats(status_data, args.json)
 
 if __name__ == "__main__":
