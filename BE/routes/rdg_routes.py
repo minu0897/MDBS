@@ -11,11 +11,10 @@ def rdg_start():
             base_url=data.get("base_url", "http://127.0.0.1:5000"),
             rps=int(data.get("rps", 10)),
             concurrent=int(data.get("concurrent", 50)),
-            allow_same_db=bool(data.get("allow_same_db", False)),
-            src_accounts=data.get("src_accounts") or RDGConfig.__dataclass_fields__["src_accounts"].default_factory(),
-            dst_accounts=data.get("dst_accounts") or RDGConfig.__dataclass_fields__["dst_accounts"].default_factory(),
+            active_dbms=data.get("active_dbms"),
             min_amount=int(data.get("min_amount", 1_000)),
             max_amount=int(data.get("max_amount", 100_000)),
+            allow_same_db=bool(data.get("allow_same_db", False)),
         )
         runner.start(cfg)
         return jsonify(ok=True, status=runner.status())
