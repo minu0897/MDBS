@@ -1,170 +1,225 @@
 # rdg_runner.py
-import asyncio
-import random
+"""
+RDG Runner - Subprocess 기반
+BE/scripts/run_rdg.py를 subprocess로 실행하고 제어합니다.
+"""
+import subprocess
 import time
-import uuid
-import threading
-from dataclasses import dataclass, field
-from typing import Dict, Optional, List
-import aiohttp
-
-DBS = ["mysql", "postgres", "oracle", "mongo"]
-BASE_URL = "http://127.0.0.1:5000"  # 고정
+import re
+import os
+import signal
+import psutil
+from pathlib import Path
+from typing import Dict, Optional
+from dataclasses import dataclass
 
 @dataclass
 class RDGConfig:
-    rps: int = 10                  # 초당 요청 수
-    concurrent: int = 50           # 동시 연결 제한
-    allow_same_db: bool = True    # 송금/수금 DB가 같아도 허용할지
-    src_accounts: List[int] = field(default_factory=lambda: list(range(200000, 200200)))
-    dst_accounts: List[int] = field(default_factory=lambda: list(range(200000, 200200)))
+    """RDG 설정"""
+    base_url: str = "http://127.0.0.1:5000"
+    rps: int = 10
+    concurrent: int = 50
+    active_dbms: list = None
     min_amount: int = 1_000
     max_amount: int = 100_000
+    allow_same_db: bool = True
 
-@dataclass
-class RDGStats:
-    started_at: float = 0.0
-    last_tick: float = 0.0
-    sent: int = 0
-    ok: int = 0
-    fail: int = 0
-    in_flight: int = 0
-    lat_sum_ms: float = 0.0
-
-    def snapshot(self) -> Dict:
-        avg_lat = (self.lat_sum_ms / self.ok) if self.ok else 0.0
-        return dict(
-            uptime_sec=time.time() - self.started_at if self.started_at else 0,
-            sent=self.sent, ok=self.ok, fail=self.fail,
-            in_flight=self.in_flight, avg_latency_ms=round(avg_lat, 2),
-            last_tick=self.last_tick
-        )
+    def __post_init__(self):
+        if self.active_dbms is None:
+            self.active_dbms = ["mysql", "postgres", "oracle"]
 
 class RDGRunner:
-    def __init__(self):
-        self._lock = threading.RLock()
-        self._thread: Optional[threading.Thread] = None
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._stop = threading.Event()
-        self._cfg: Optional[RDGConfig] = None
-        self._stats = RDGStats()
+    """RDG 프로세스 관리자"""
 
-    # ---------- public ----------
+    def __init__(self):
+        self._process: Optional[subprocess.Popen] = None
+        self._start_time: Optional[float] = None
+        self._cfg: Optional[RDGConfig] = None
+
+        # 스크립트 경로 (BE/scripts/run_rdg.py)
+        self.scripts_dir = Path(__file__).parent.parent / "scripts"
+        self.run_script = self.scripts_dir / "run_rdg.py"
+        self.log_file = self.scripts_dir / "rdg_v1.log"
+
     def start(self, cfg: RDGConfig):
-        with self._lock:
-            if self.is_running():
-                raise RuntimeError("RDG is already running")
-            self._cfg = cfg
-            self._stop.clear()
-            self._stats = RDGStats(started_at=time.time())
-            self._thread = threading.Thread(target=self._run_loop, daemon=True)
-            self._thread.start()
+        """RDG 프로세스 시작"""
+        if self.is_running():
+            raise RuntimeError("RDG is already running")
+
+        self._cfg = cfg
+        self._start_time = time.time()
+
+        # rdg_config.py를 동적으로 업데이트 (선택적)
+        # 또는 환경 변수로 전달
+        env = os.environ.copy()
+        env["BASE_URL"] = cfg.base_url
+        env["ENV"] = "dev"  # 또는 "server"
+
+        # subprocess로 run_rdg.py 실행
+        try:
+            self._process = subprocess.Popen(
+                ["python", str(self.run_script)],
+                cwd=str(self.scripts_dir),
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
+            )
+            # 프로세스가 시작될 때까지 잠시 대기
+            time.sleep(1)
+
+            # 프로세스가 제대로 시작되었는지 확인
+            if self._process.poll() is not None:
+                raise RuntimeError(f"RDG process failed to start: {self._process.stderr.read()}")
+
+        except Exception as e:
+            self._process = None
+            self._start_time = None
+            raise RuntimeError(f"Failed to start RDG: {e}")
 
     def stop(self):
-        with self._lock:
-            if not self.is_running():
-                return
-            self._stop.set()
-        if self._thread:
-            self._thread.join(timeout=5)
-        with self._lock:
-            self._thread = None
-            self._loop = None
+        """RDG 프로세스 중지"""
+        if not self.is_running():
+            return
+
+        try:
+            # 프로세스 트리 전체 종료 (자식 프로세스 포함)
+            if self._process:
+                parent = psutil.Process(self._process.pid)
+                children = parent.children(recursive=True)
+
+                # 자식 프로세스 먼저 종료
+                for child in children:
+                    try:
+                        child.terminate()
+                    except psutil.NoSuchProcess:
+                        pass
+
+                # 부모 프로세스 종료
+                parent.terminate()
+
+                # 5초 대기 후 강제 종료
+                try:
+                    parent.wait(timeout=5)
+                except psutil.TimeoutExpired:
+                    parent.kill()
+                    for child in children:
+                        try:
+                            child.kill()
+                        except psutil.NoSuchProcess:
+                            pass
+
+        except Exception as e:
+            # fallback: 기본 terminate
+            if self._process:
+                self._process.terminate()
+                try:
+                    self._process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    self._process.kill()
+
+        finally:
+            self._process = None
+            self._start_time = None
 
     def status(self) -> Dict:
-        with self._lock:
-            running = self.is_running()
-            cfg = self._cfg.__dict__ if self._cfg else None
-            return dict(running=running, cfg=cfg, stats=self._stats.snapshot(), base_url=BASE_URL)
+        """RDG 상태 및 통계 조회"""
+        running = self.is_running()
+        cfg = self._cfg.__dict__ if self._cfg else None
+
+        # 로그 파일에서 통계 파싱
+        stats = self._parse_log_stats() if running else self._get_empty_stats()
+
+        return {
+            "running": running,
+            "cfg": cfg,
+            "stats": stats,
+            "base_url": self._cfg.base_url if self._cfg else None
+        }
 
     def is_running(self) -> bool:
-        return self._thread is not None and self._thread.is_alive()
+        """RDG 프로세스 실행 여부 확인"""
+        if self._process is None:
+            return False
 
-    # ---------- internal ----------
-    def _run_loop(self):
+        # poll()이 None이면 아직 실행 중
+        return self._process.poll() is None
+
+    def _parse_log_stats(self) -> Dict:
+        """로그 파일에서 통계 파싱"""
+        if not self.log_file.exists():
+            return self._get_empty_stats()
+
         try:
-            self._loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self._loop)
-            self._loop.run_until_complete(self._main())
-        except Exception:
-            pass
-        finally:
-            try:
-                if self._loop and not self._loop.is_closed():
-                    self._loop.run_until_complete(self._loop.shutdown_asyncgens())
-                    self._loop.close()
-            except:
-                pass
+            # 로그 파일의 마지막 통계 리포트 읽기
+            with open(self.log_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
 
-    async def _main(self):
-        assert self._cfg, "config required"
-        sem = asyncio.Semaphore(self._cfg.concurrent)
-        conn = aiohttp.TCPConnector(limit=self._cfg.concurrent)
-        async with aiohttp.ClientSession(connector=conn) as session:
-            while not self._stop.is_set():
-                tick_start = time.time()
-                self._stats.last_tick = tick_start
-                tasks = []
-                for _ in range(self._cfg.rps):
-                    await sem.acquire()
-                    task = asyncio.create_task(self._single_request(session))
-                    task.add_done_callback(lambda _t: sem.release())
-                    tasks.append(task)
-                await asyncio.gather(*tasks, return_exceptions=True)
-                elapsed = time.time() - tick_start
-                sleep_left = max(0, 1.0 - elapsed)
-                await asyncio.sleep(sleep_left)
+            # 마지막 통계 블록 찾기 (역순으로 검색)
+            stats_block = []
+            found_separator = False
 
-    async def _single_request(self, session: aiohttp.ClientSession):
-        self._stats.in_flight += 1
-        t0 = time.time()
-        try:
-            src_db, dst_db = self._pick_two_dbs()
-            payload = self._make_payload(src_db, dst_db)
+            for line in reversed(lines):
+                if '=' * 60 in line:
+                    if found_separator:
+                        break
+                    found_separator = True
+                elif found_separator:
+                    stats_block.insert(0, line)
 
-            url = f"{BASE_URL}/db/proc/exec"  # 고정
+            # 통계 파싱
+            sent = 0
+            success = 0
+            fail = 0
+            actual_rps = 0.0
+            success_rate = 0.0
+            uptime_sec = 0.0
 
-            async with session.post(url, json=payload, timeout=10) as resp:
-                _ = await resp.text()
-                self._stats.sent += 1
-                if 200 <= resp.status < 300:
-                    self._stats.ok += 1
-                else:
-                    self._stats.fail += 1
-        except Exception:
-            self._stats.sent += 1
-            self._stats.fail += 1
-        finally:
-            dt_ms = (time.time() - t0) * 1000.0
-            self._stats.lat_sum_ms += dt_ms
-            self._stats.in_flight -= 1
+            for line in stats_block:
+                # 경과 시간: 120.50초
+                if match := re.search(r'경과 시간:\s*([\d.]+)초', line):
+                    uptime_sec = float(match.group(1))
+                # 전송: 1205 | 성공: 1198 | 실패: 7
+                elif match := re.search(r'전송:\s*(\d+)\s*\|\s*성공:\s*(\d+)\s*\|\s*실패:\s*(\d+)', line):
+                    sent = int(match.group(1))
+                    success = int(match.group(2))
+                    fail = int(match.group(3))
+                # 실제 RPS: 10.04 | 성공률: 99.42%
+                elif match := re.search(r'실제 RPS:\s*([\d.]+)\s*\|\s*성공률:\s*([\d.]+)%', line):
+                    actual_rps = float(match.group(1))
+                    success_rate = float(match.group(2))
 
-    def _pick_two_dbs(self):
-        src = random.choice(DBS)
-        dst = random.choice(DBS)
-        if not self._cfg.allow_same_db:
-            while dst == src:
-                dst = random.choice(DBS)
-        return src, dst
+            return {
+                "uptime_sec": uptime_sec,
+                "sent": sent,
+                "ok": success,
+                "fail": fail,
+                "success_rate": success_rate,
+                "actual_rps": actual_rps,
+                "avg_latency_ms": 0.0,  # RDG_v1.py에서는 평균 레이턴시를 로그에 출력하지 않음
+                "in_flight": 0,  # 실시간 추적 불가
+                "last_tick": time.time()
+            }
 
-    def _make_payload(self, src_db: str, dst_db: str) -> Dict:
-        src_acc = random.choice(self._cfg.src_accounts)
-        dst_acc = random.choice(self._cfg.dst_accounts)
-        amount = random.randint(self._cfg.min_amount, self._cfg.max_amount)
-        idem = str(uuid.uuid4())
+        except Exception as e:
+            print(f"Error parsing log: {e}")
+            return self._get_empty_stats()
 
-        hold_args = [src_acc, dst_acc, "EXT", amount, idem, "1"]
-        settle_args = [None, idem]
-
-        src_payload = dict(db=src_db, kind="proc", name="sp_remittance_hold", args=hold_args)
-        dst_payload = dict(db=dst_db, kind="proc", name="sp_remittance_settle", args=settle_args)
-
-        return dict(
-            op="remit",
-            src=src_payload,
-            dst=dst_payload,
-            meta=dict(idempotency_key=idem, ts=int(time.time()))
-        )
+    def _get_empty_stats(self) -> Dict:
+        """빈 통계 반환"""
+        return {
+            "uptime_sec": 0,
+            "sent": 0,
+            "ok": 0,
+            "fail": 0,
+            "success_rate": 0.0,
+            "actual_rps": 0.0,
+            "avg_latency_ms": 0.0,
+            "in_flight": 0,
+            "last_tick": 0.0
+        }
 
 # 싱글톤
 runner = RDGRunner()
