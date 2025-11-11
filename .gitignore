@@ -9,6 +9,8 @@
 .env.*
 !*.example
 
+
+
 # python
 __pycache__/
 *.pyc
@@ -20,3 +22,6 @@ FE/node_modules/
 
 # docker artifacts
 *.log
+
+# venv (rdg에서 생성)
+BE/scripts/venv/
