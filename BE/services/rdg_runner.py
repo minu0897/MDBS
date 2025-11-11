@@ -81,48 +81,69 @@ class RDGRunner:
 
     def stop(self):
         """RDG 프로세스 중지"""
-        if not self.is_running():
-            return
+        stopped = False
 
-        try:
-            # 프로세스 트리 전체 종료 (자식 프로세스 포함)
-            if self._process:
-                parent = psutil.Process(self._process.pid)
-                children = parent.children(recursive=True)
+        # 1. subprocess로 시작한 프로세스 종료
+        if self.is_running():
+            try:
+                # 프로세스 트리 전체 종료 (자식 프로세스 포함)
+                if self._process:
+                    parent = psutil.Process(self._process.pid)
+                    children = parent.children(recursive=True)
 
-                # 자식 프로세스 먼저 종료
-                for child in children:
-                    try:
-                        child.terminate()
-                    except psutil.NoSuchProcess:
-                        pass
-
-                # 부모 프로세스 종료
-                parent.terminate()
-
-                # 5초 대기 후 강제 종료
-                try:
-                    parent.wait(timeout=5)
-                except psutil.TimeoutExpired:
-                    parent.kill()
+                    # 자식 프로세스 먼저 종료
                     for child in children:
                         try:
-                            child.kill()
+                            child.terminate()
                         except psutil.NoSuchProcess:
                             pass
 
-        except Exception as e:
-            # fallback: 기본 terminate
-            if self._process:
-                self._process.terminate()
-                try:
-                    self._process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    self._process.kill()
+                    # 부모 프로세스 종료
+                    parent.terminate()
 
-        finally:
-            self._process = None
-            self._start_time = None
+                    # 5초 대기 후 강제 종료
+                    try:
+                        parent.wait(timeout=5)
+                    except psutil.TimeoutExpired:
+                        parent.kill()
+                        for child in children:
+                            try:
+                                child.kill()
+                            except psutil.NoSuchProcess:
+                                pass
+                    stopped = True
+
+            except Exception as e:
+                # fallback: 기본 terminate
+                if self._process:
+                    self._process.terminate()
+                    try:
+                        self._process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        self._process.kill()
+
+            finally:
+                self._process = None
+                self._start_time = None
+
+        # 2. 외부에서 실행된 run_rdg.py 프로세스 종료
+        try:
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    cmdline = proc.info.get('cmdline', [])
+                    if cmdline and 'run_rdg.py' in ' '.join(cmdline):
+                        proc.terminate()
+                        try:
+                            proc.wait(timeout=5)
+                        except psutil.TimeoutExpired:
+                            proc.kill()
+                        stopped = True
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+        except Exception as e:
+            pass
+
+        return stopped
 
     def status(self) -> Dict:
         """RDG 상태 및 통계 조회"""
