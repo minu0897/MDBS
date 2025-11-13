@@ -267,7 +267,7 @@ export default function Dashboard() {
               }`}
             >
               <Server className="mr-3 h-5 w-5" />
-              Server Control
+              Server Control(구현x)
             </button>
             <button
               onClick={() => setActiveSection("query-executor")}
@@ -278,7 +278,7 @@ export default function Dashboard() {
               }`}
             >
               <Terminal className="mr-3 h-5 w-5" />
-              Query Executor
+              Query Executor(구현x)
             </button>
             <button
               onClick={() => setActiveSection("data-explorer")}
@@ -300,7 +300,7 @@ export default function Dashboard() {
               }`}
             >
               <Monitor className="mr-3 h-5 w-5" />
-              Performance Monitor
+              "Performance Monitor(x)
             </button>
             <button
               onClick={() => setActiveSection("connections")}
@@ -311,7 +311,7 @@ export default function Dashboard() {
               }`}
             >
               <Database className="mr-3 h-5 w-5" />
-              Connections
+              Connections(구현x)
             </button>
             <button
               onClick={() => setActiveSection("settings")}
@@ -322,7 +322,7 @@ export default function Dashboard() {
               }`}
             >
               <Settings className="mr-3 h-5 w-5" />
-              Settings
+              Settings(구현x)
             </button>
           </nav>
         </div>

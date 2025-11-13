@@ -52,8 +52,8 @@ export default function DataExplorerSection() {
 
   const features = [
     { id: "transfer-history" as FeatureType, label: "Transfer History", icon: Search },
-    { id: "total-balance" as FeatureType, label: "Total Balance", icon: DollarSign },
-    { id: "transfer" as FeatureType, label: "Execute Transfer", icon: ArrowRightLeft },
+    { id: "total-balance" as FeatureType, label: "Total Balance(구현x)", icon: DollarSign },
+    { id: "transfer" as FeatureType, label: "Execute Transfer(구현x)", icon: ArrowRightLeft },
   ]
 
   const banks = [

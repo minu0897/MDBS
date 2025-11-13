@@ -65,7 +65,7 @@ export default function DashboardSection({
       {/* Server Control Board */}
       <Card className="bg-card border-border mb-6">
         <CardHeader>
-          <CardTitle className="text-card-foreground">Server Control Board</CardTitle>
+          <CardTitle className="text-card-foreground">Server Control Board(조회만 구현)</CardTitle>
           <CardDescription>Monitor and control your database servers</CardDescription>
         </CardHeader>
         <CardContent>
@@ -308,7 +308,7 @@ export default function DashboardSection({
       {/* Recent Query Executions */}
       <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-card-foreground">Recent Query Executions</CardTitle>
+          <CardTitle className="text-card-foreground">Recent Query Executions(구현x)</CardTitle>
           <CardDescription>Latest database operations across all systems</CardDescription>
         </CardHeader>
         <CardContent>
