@@ -27,10 +27,11 @@ import PerformanceMonitorSection from "@/components/sections/PerformanceMonitorS
 import type { ServerStates, DockerStatsResponse, DBKey, ServerStatus } from "@/lib/types"
 
 const API_BASE_server = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
+const DOCKER_API_BASE = process.env.NEXT_PUBLIC_DOCKER_API_URL || "http://localhost:5000";
 
 
 const fetcher = () =>
-  fetch(`${API_BASE_server}/system/docker/stats`).then((r) => {
+  fetch(`${DOCKER_API_BASE}/system/docker/stats`).then((r) => {
     if (!r.ok) throw new Error("Failed to fetch");
     return r.json();
   }).then((response) => {
