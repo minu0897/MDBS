@@ -49,22 +49,28 @@ class RDGRunner:
         self._cfg = cfg
         self._start_time = time.time()
 
-        # rdg_config.py를 동적으로 업데이트 (선택적)
-        # 또는 환경 변수로 전달
+        # 설정값을 환경 변수로 전달
         env = os.environ.copy()
         env["BASE_URL"] = cfg.base_url
+        env["RPS"] = str(cfg.rps)
+        env["CONCURRENT_LIMIT"] = str(cfg.concurrent)
+        env["MIN_AMOUNT"] = str(cfg.min_amount)
+        env["MAX_AMOUNT"] = str(cfg.max_amount)
+        env["ALLOW_SAME_DB"] = str(cfg.allow_same_db)
+        if cfg.active_dbms:
+            env["ACTIVE_DBMS"] = ",".join(cfg.active_dbms)
         env["ENV"] = "dev"  # 또는 "server"
 
         # subprocess로 run_rdg.py 실행
         try:
+            # stdout/stderr를 DEVNULL로 설정하여 버퍼 문제 방지
+            # 로그는 rdg_v1.log 파일에 기록됨
             self._process = subprocess.Popen(
                 ["python", str(self.run_script)],
                 cwd=str(self.scripts_dir),
                 env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
             )
             # 프로세스가 시작될 때까지 잠시 대기
@@ -72,7 +78,7 @@ class RDGRunner:
 
             # 프로세스가 제대로 시작되었는지 확인
             if self._process.poll() is not None:
-                raise RuntimeError(f"RDG process failed to start: {self._process.stderr.read()}")
+                raise RuntimeError(f"RDG process failed to start. Check log file: {self.log_file}")
 
         except Exception as e:
             self._process = None
@@ -167,21 +173,24 @@ class RDGRunner:
         }
 
     def _check_external_process(self) -> bool:
-        """외부에서 실행된 run_rdg.py 프로세스 확인"""
+        """외부에서 실행된 run_rdg.py 또는 RDG_v1.py 프로세스 확인"""
         try:
             import psutil
             for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
                 try:
                     cmdline = proc.info.get('cmdline', [])
-                    if cmdline and 'run_rdg.py' in ' '.join(cmdline):
-                        return True
+                    if cmdline:
+                        cmdline_str = ' '.join(str(arg) for arg in cmdline if arg)
+                        # run_rdg.py 또는 RDG_v1.py 둘 다 확인
+                        if 'run_rdg.py' in cmdline_str or 'RDG_v1.py' in cmdline_str:
+                            return True
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
             return False
-        except:
+        except Exception as e:
             # psutil 없으면 ps 명령어 사용 (Linux/Unix)
             try:
-                result = os.popen('ps aux | grep "[r]un_rdg.py"').read()
+                result = os.popen('ps aux | grep -E "[r]un_rdg.py|RDG_v1.py"').read()
                 return bool(result.strip())
             except:
                 return False

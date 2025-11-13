@@ -2,6 +2,6 @@ SELECT
   account_id,
   name,
   balance
-FROM MDBS.accounts
+FROM accounts
 WHERE name LIKE :name || '%%'
 ORDER BY account_id

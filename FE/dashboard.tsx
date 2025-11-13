@@ -22,10 +22,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import DashboardSection from "@/components/sections/DashboardSection"
 import ServerControlSection from "@/components/sections/ServerControlSection"
 import QueryExecutorSection from "@/components/sections/QueryExecutorSection"
+import DataExplorerSection from "@/components/sections/DataExplorerSection"
 import PerformanceMonitorSection from "@/components/sections/PerformanceMonitorSection"
 import type { ServerStates, DockerStatsResponse, DBKey, ServerStatus } from "@/lib/types"
 
-const API_BASE = "http://localhost:5000";
 const API_BASE_server = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
 
 
@@ -40,12 +40,24 @@ const fetcher = () =>
   })
 
 const connCountFetcher = () =>
-  fetch(`${API_BASE}/system/conn-counts`).then((r) => {
+  fetch(`${API_BASE_server}/system/conn-counts`).then((r) => {
     if (!r.ok) throw new Error("Failed to fetch");
     return r.json();
   }).then((response) => {
     // API 응답이 { data: [...], ok: true } 형태
     return response.data;
+  })
+
+const rdgStatsFetcher = () =>
+  fetch(`${API_BASE_server}/rdg/status`).then((r) => {
+    if (!r.ok) throw new Error("Failed to fetch RDG stats");
+    return r.json();
+  }).then((response) => {
+    // API 응답이 { ok: true, status: { running: true, stats: {...} } } 형태
+    if (response.ok && response.status) {
+      return response.status;
+    }
+    return null;
   })
 
 // Docker stats를 ServerStates로 변환하는 함수
@@ -73,6 +85,11 @@ function transformDockerStatsToServerStates(dockerStats: DockerStatsResponse | u
   }
 
   dockerStats.containers.forEach((container) => {
+    // 에러 응답 처리 (name이 없는 경우 무시)
+    if (!container.name || !container.state) {
+      return
+    }
+
     const containerName = container.name.toLowerCase()
 
     const dbKey = nameMap[containerName]
@@ -119,6 +136,12 @@ export default function Dashboard() {
     revalidateOnFocus: false,
   })
 
+  // 3) SWR 폴링으로 RDG 통계 주기 업데이트
+  const { data: rdgData, isLoading: isLoadingRdg } = useSWR("/rdg/status", rdgStatsFetcher, {
+    refreshInterval: 10000, // 10초마다 재검증
+    revalidateOnFocus: false,
+  })
+
   // 로딩 상태 (최초 로딩 시에만 true)
   const isLoading = isLoadingStats || isLoadingConnCount
 
@@ -131,7 +154,7 @@ export default function Dashboard() {
   // 3) 서버 액션 (start/stop/restart) - API 호출 후 재검증
   const handleServerAction = async (server: DBKey, action: "start" | "stop" | "restart") => {
     try {
-      await fetch(`${API_BASE}/api/servers/${server}/actions`, {
+      await fetch(`${API_BASE_server}/api/servers/${server}/actions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
@@ -257,6 +280,17 @@ export default function Dashboard() {
               Query Executor
             </button>
             <button
+              onClick={() => setActiveSection("data-explorer")}
+              className={`flex items-center w-full px-4 py-3 text-sm font-medium rounded-r-md transition-colors ${
+                activeSection === "data-explorer"
+                  ? "text-sidebar-accent-foreground bg-sidebar-accent border-l-4 border-sidebar-accent"
+                  : "text-sidebar-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
+              }`}
+            >
+              <Database className="mr-3 h-5 w-5" />
+              Data Explorer
+            </button>
+            <button
               onClick={() => setActiveSection("performance")}
               className={`flex items-center w-full px-4 py-3 text-sm font-medium rounded-r-md transition-colors ${
                 activeSection === "performance"
@@ -309,6 +343,8 @@ export default function Dashboard() {
                 ? "Server Control"
                 : activeSection === "query-executor"
                 ? "Query Executor"
+                : activeSection === "data-explorer"
+                ? "Data Explorer"
                 : activeSection === "performance"
                 ? "Performance Monitor"
                 : activeSection === "connections"
@@ -317,10 +353,12 @@ export default function Dashboard() {
             </h1>
           </div>
           <div className="flex items-center space-x-4">
-            <Button variant="outline" className="border-border bg-transparent">
+            {false && 
+              <Button variant="outline" className="border-border bg-transparent">
               <Download className="h-4 w-4 mr-2" />
               Export Data
             </Button>
+            }
 
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
@@ -365,17 +403,21 @@ export default function Dashboard() {
               performanceData={performanceData}
               connectionData={connectionData}
               isLoading={isLoading}
+              rdgStats={rdgData?.stats || null}
+              rdgRunning={rdgData?.running || false}
             />
           )}
           {activeSection === "server-control" && <ServerControlSection serverStates={serverStates} />}
           {activeSection === "query-executor" && (
             <QueryExecutorSection selectedDBMS={selectedDBMS} onChangeSelectedDBMS={setSelectedDBMS} />
           )}
+          {activeSection === "data-explorer" && <DataExplorerSection />}
           {activeSection === "performance" && <PerformanceMonitorSection performanceData={performanceData} />}
 
           {activeSection !== "dashboard" &&
             activeSection !== "server-control" &&
             activeSection !== "query-executor" &&
+            activeSection !== "data-explorer" &&
             activeSection !== "performance" && (
               <div className="flex items-center justify-center h-full">
                 <Card className="w-full max-w-md bg-card border-border">

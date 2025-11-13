@@ -30,24 +30,29 @@ BASE_URL = os.getenv("BASE_URL", "http://localhost:5000")
 # 초당 생성할 거래 수 (Requests Per Second)
 # 예: RPS=10 → 초당 10개의 거래 생성
 # 네트워크 오류 발생 시 RPS와 CONCURRENT_LIMIT를 낮추세요
-RPS = 3  # 권장: 3-5 (네트워크 안정성에 따라 조정)
-#RPS = 5
+# API 요청으로 전달된 값이 있으면 그것을 사용, 없으면 기본값 사용
+RPS = int(os.getenv("RPS", 3))  # 권장: 3-5 (네트워크 안정성에 따라 조정)
+
 # 동시 처리 제한
 # 동시에 처리할 수 있는 최대 연결 수
 # 서버 과부하 방지를 위해 낮은 값 권장
-CONCURRENT_LIMIT = 10  # 권장: 5-15 (서버 부하에 따라 조정)
-#CONCURRENT_LIMIT = 30
+CONCURRENT_LIMIT = int(os.getenv("CONCURRENT_LIMIT", 10))  # 권장: 5-15 (서버 부하에 따라 조정)
 
 # ==================== DBMS 설정 ====================
 # 활성화할 DBMS 리스트
 # 가능한 값: "mysql", "postgres", "oracle", "mongo"
 # 예: ACTIVE_DBMS = ["mysql", "postgres"] → MySQL과 PostgreSQL만 사용
-ACTIVE_DBMS: List[str] = [
-    "mysql",
-    "postgres",
-    "oracle"
-    #,"mongo"
-]
+# API 요청으로 전달된 값이 있으면 그것을 사용, 없으면 기본값 사용
+_active_dbms_env = os.getenv("ACTIVE_DBMS")
+if _active_dbms_env:
+    ACTIVE_DBMS: List[str] = _active_dbms_env.split(",")
+else:
+    ACTIVE_DBMS: List[str] = [
+        "mysql",
+        "postgres",
+        "oracle"
+        #,"mongo"
+    ]
 
 # ==================== 계좌 설정 ====================
 # 계좌 번호는 자동으로 생성됩니다.
@@ -58,16 +63,18 @@ ACTIVE_DBMS: List[str] = [
 
 # ==================== 금액 설정 ====================
 # 거래 최소 금액
-MIN_AMOUNT = 1_000
+# API 요청으로 전달된 값이 있으면 그것을 사용, 없으면 기본값 사용
+MIN_AMOUNT = int(os.getenv("MIN_AMOUNT", 1_000))
 
 # 거래 최대 금액
-MAX_AMOUNT = 100_000
+MAX_AMOUNT = int(os.getenv("MAX_AMOUNT", 100_000))
 
 # ==================== 이체 설정 ====================
 # 같은 DBMS 내 이체 허용 여부
 # True: 같은 DBMS 내에서도 이체 가능 (MySQL → MySQL)
 # False: 항상 다른 DBMS로만 이체 (MySQL → PostgreSQL)
-ALLOW_SAME_DB = True
+# API 요청으로 전달된 값이 있으면 그것을 사용, 없으면 기본값 사용
+ALLOW_SAME_DB = os.getenv("ALLOW_SAME_DB", "True").lower() in ("true", "1", "yes")
 
 # ==================== 로그 설정 ====================
 # 로그 레벨

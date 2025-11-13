@@ -2,9 +2,20 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Database, Server, Activity, Zap, Play, Square, RotateCcw } from "lucide-react"
+import { Database, Server, Activity, Zap, Play, Square, RotateCcw, TrendingUp, Clock, CheckCircle2, XCircle, Send } from "lucide-react"
 import { ResponsiveContainer, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, Area } from "recharts"
 import type { ConnectionItem, PerformancePoint, ServerStates, DBKey } from "@/lib/types"
+
+type RDGStats = {
+  uptime_sec: number
+  sent: number
+  ok: number
+  fail: number
+  success_rate: number
+  actual_rps: number
+  avg_latency_ms: number
+  in_flight: number
+}
 
 type Props = {
   serverStates: ServerStates
@@ -12,6 +23,8 @@ type Props = {
   performanceData: PerformancePoint[]
   connectionData: ConnectionItem[]
   isLoading?: boolean
+  rdgStats?: RDGStats | null
+  rdgRunning?: boolean
 }
 
 export default function DashboardSection({
@@ -20,17 +33,29 @@ export default function DashboardSection({
   performanceData,
   connectionData,
   isLoading = false,
+  rdgStats = null,
+  rdgRunning = false,
 }: Props) {
+
+  // 시간 포맷 헬퍼 함수
+  const formatUptime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const secs = Math.floor(seconds % 60)
+    if (hours > 0) return `${hours}h ${minutes}m ${secs}s`
+    if (minutes > 0) return `${minutes}m ${secs}s`
+    return `${secs}s`
+  }
 
 
   return (
     <div className="relative">
-      {/* Loading Overlay */}
+      {/* Loading Indicator */}
       {isLoading && (
-        <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-50 flex items-center justify-center rounded-lg">
-          <div className="bg-card border border-border rounded-lg p-6 shadow-lg">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-3"></div>
-            <p className="text-card-foreground font-medium">데이터 로딩 중...</p>
+        <div className="absolute top-4 right-4 z-50">
+          <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2 shadow-lg">
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-primary"></div>
+            <span className="text-sm text-muted-foreground">조회 중</span>
           </div>
         </div>
       )}
@@ -162,24 +187,95 @@ export default function DashboardSection({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <Card className="bg-card border-border">
           <CardHeader>
-            <CardTitle className="text-card-foreground">Performance Comparison</CardTitle>
-            <CardDescription>Queries per second over time</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-card-foreground">RDG Statistics</CardTitle>
+                <CardDescription>Random Data Generator Performance Metrics</CardDescription>
+              </div>
+              {rdgRunning && (
+                <Badge variant="default" className="bg-green-500">
+                  <Activity className="h-3 w-3 mr-1 animate-pulse" />
+                  Running
+                </Badge>
+              )}
+              {!rdgRunning && rdgStats && (
+                <Badge variant="secondary">Stopped</Badge>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={performanceData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Area type="monotone" dataKey="mysql" stackId="1" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.6} />
-                  <Area type="monotone" dataKey="postgresql" stackId="1" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.6} />
-                  <Area type="monotone" dataKey="mongodb" stackId="1" stroke="hsl(var(--chart-3))" fill="hsl(var(--chart-3))" fillOpacity={0.6} />
-                  <Area type="monotone" dataKey="oracle" stackId="1" stroke="hsl(var(--chart-4))" fill="hsl(var(--chart-4))" fillOpacity={0.6} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+            {rdgStats ? (
+              <div className="space-y-4">
+                {/* 주요 메트릭 그리드 */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-3 border border-blue-200 dark:border-blue-900">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Send className="h-4 w-4 text-blue-600" />
+                      <span className="text-xs text-muted-foreground">Total Sent</span>
+                    </div>
+                    <p className="text-2xl font-bold text-blue-600">{rdgStats.sent.toLocaleString()}</p>
+                  </div>
+
+                  <div className="bg-green-50 dark:bg-green-950/20 rounded-lg p-3 border border-green-200 dark:border-green-900">
+                    <div className="flex items-center gap-2 mb-1">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <span className="text-xs text-muted-foreground">Success</span>
+                    </div>
+                    <p className="text-2xl font-bold text-green-600">{rdgStats.ok.toLocaleString()}</p>
+                  </div>
+
+                  <div className="bg-red-50 dark:bg-red-950/20 rounded-lg p-3 border border-red-200 dark:border-red-900">
+                    <div className="flex items-center gap-2 mb-1">
+                      <XCircle className="h-4 w-4 text-red-600" />
+                      <span className="text-xs text-muted-foreground">Failed</span>
+                    </div>
+                    <p className="text-2xl font-bold text-red-600">{rdgStats.fail.toLocaleString()}</p>
+                  </div>
+
+                  <div className="bg-purple-50 dark:bg-purple-950/20 rounded-lg p-3 border border-purple-200 dark:border-purple-900">
+                    <div className="flex items-center gap-2 mb-1">
+                      <TrendingUp className="h-4 w-4 text-purple-600" />
+                      <span className="text-xs text-muted-foreground">Actual RPS</span>
+                    </div>
+                    <p className="text-2xl font-bold text-purple-600">{rdgStats.actual_rps.toFixed(2)}</p>
+                  </div>
+                </div>
+
+                {/* 상세 정보 */}
+                <div className="space-y-2 pt-2 border-t">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">Uptime</span>
+                    </div>
+                    <span className="font-medium">{formatUptime(rdgStats.uptime_sec)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Success Rate</span>
+                    <div className="flex items-center gap-2">
+                      <Progress value={rdgStats.success_rate} className="w-20 h-2" />
+                      <span className="font-medium">{rdgStats.success_rate.toFixed(2)}%</span>
+                    </div>
+                  </div>
+
+                  {rdgStats.avg_latency_ms > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Avg Latency</span>
+                      <span className="font-medium">{rdgStats.avg_latency_ms.toFixed(2)}ms</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="h-[260px] flex items-center justify-center text-muted-foreground">
+                <div className="text-center">
+                  <Activity className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                  <p>No RDG data available</p>
+                  <p className="text-sm">Start RDG to see statistics</p>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
