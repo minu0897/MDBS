@@ -50,7 +50,7 @@ const connCountFetcher = () =>
   })
 
 const rdgStatsFetcher = () =>
-  fetch(`${API_BASE_server}/rdg/status`).then((r) => {
+  fetch(`${DOCKER_API_BASE}/rdg/status`).then((r) => {
     if (!r.ok) throw new Error("Failed to fetch RDG stats");
     return r.json();
   }).then((response) => {

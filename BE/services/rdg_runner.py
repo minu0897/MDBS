@@ -159,11 +159,33 @@ class RDGRunner:
         # 외부에서 실행된 run_rdg.py 프로세스 체크
         external_running = self._check_external_process()
 
-        running = process_running or external_running
-        cfg = self._cfg.__dict__ if self._cfg else None
-
         # 로그 파일에서 통계 파싱 (running 여부와 관계없이 시도)
         stats = self._parse_log_stats()
+
+        # 로그 파일 기반 running 판단 (최근 30초 이내 업데이트 확인)
+        log_based_running = False
+        log_file_age = None
+        if self.log_file.exists():
+            try:
+                log_mtime = self.log_file.stat().st_mtime
+                log_file_age = time.time() - log_mtime
+                if log_file_age < 30:  # 30초 이내 업데이트
+                    log_based_running = True
+            except Exception as e:
+                print(f"[DEBUG] Error checking log file: {e}")
+
+        running = process_running or external_running or log_based_running
+        cfg = self._cfg.__dict__ if self._cfg else None
+
+        # 디버깅 로그
+        print(f"[DEBUG] Running status check:")
+        print(f"  - process_running: {process_running}")
+        print(f"  - external_running: {external_running}")
+        print(f"  - log_based_running: {log_based_running}")
+        print(f"  - log_file exists: {self.log_file.exists()}")
+        print(f"  - log_file path: {self.log_file}")
+        print(f"  - log_file age: {log_file_age}s" if log_file_age is not None else "  - log_file age: N/A")
+        print(f"  - FINAL running: {running}")
 
         return {
             "running": running,
