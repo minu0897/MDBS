@@ -11,7 +11,7 @@ def get_adapter(dbms: str):
     """
     d = (dbms or "").lower()
     cfg = current_app.config
-    
+
     if d == "mysql":
         return MySQLAdapter(cfg["MYSQL"])
     if d == "postgres":

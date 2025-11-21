@@ -52,3 +52,25 @@ def transfer_confirm_internal():
         return ok(svc.transfer_confirm_internal(request.get_json(force=True)))
     except Exception as e:
         return fail(str(e), 400)
+
+@mongo_bp.post("/remittance/release")
+def remittance_release():
+    try:
+        svc = MongoTxService()
+        return ok(svc.remittance_release(request.get_json(force=True)))
+    except Exception as e:
+        return fail(str(e), 400)
+
+@mongo_bp.post("/reset")
+def reset_data():
+    """
+    MongoDB 데이터 리셋 엔드포인트
+    Body (optional): {"test_account_ids": [100001, 100101]}
+    """
+    try:
+        body = request.get_json(force=True) or {}
+        test_account_ids = body.get("test_account_ids")
+        svc = MongoTxService()
+        return ok(svc.reset_data(test_account_ids))
+    except Exception as e:
+        return fail(str(e), 400)

@@ -50,8 +50,8 @@ else:
     ACTIVE_DBMS: List[str] = [
         "mysql",
         "postgres",
-        "oracle"
-        #,"mongo"
+        "oracle",
+        "mongo"
     ]
 
 # ==================== 계좌 설정 ====================

@@ -52,14 +52,14 @@ export default function DataExplorerSection() {
 
   const features = [
     { id: "transfer-history" as FeatureType, label: "Transfer History", icon: Search },
-    { id: "total-balance" as FeatureType, label: "Total Balance(구현x)", icon: DollarSign },
+    { id: "total-balance" as FeatureType, label: "Total Balance", icon: DollarSign },
     { id: "transfer" as FeatureType, label: "Execute Transfer(구현x)", icon: ArrowRightLeft },
   ]
 
   const banks = [
     { value: "mysql", label: "MySQL" },
-    { value: "postgresql", label: "PostgreSQL" },
-    { value: "mongodb", label: "MongoDB" },
+    { value: "postgres", label: "PostgreSQL" },
+    { value: "mongo", label: "MongoDB" },
     { value: "oracle", label: "Oracle" },
   ]
 
@@ -126,7 +126,7 @@ export default function DataExplorerSection() {
     try {
       const balances: BankBalance[] = []
 
-      // 각 DBMS별로 계좌 목록 조회 후 잔액 합산
+      // 각 DBMS별로 총 잔액 조회
       for (const bank of banks) {
         try {
           const response = await fetch(`${API_BASE}/db/file/sql`, {
@@ -134,18 +134,17 @@ export default function DataExplorerSection() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               dbms: bank.value,
-              id: "query.accounts.list_all",
+              id: "query.accounts.all_balance",
               params: {}
             })
           })
 
           const result = await response.json()
 
-          if (result.ok && Array.isArray(result.data)) {
-            const totalAmount = result.data.reduce((sum: number, account: any) => {
-              const balance = account.BALANCE || account.balance || 0
-              return sum + balance
-            }, 0)
+          if (result.ok && Array.isArray(result.data) && result.data.length > 0) {
+            // query.accounts.all_balance는 sum(balance) as balance를 반환
+            const rawAmount = result.data[0].BALANCE || result.data[0].balance || 0
+            const totalAmount = Math.floor(Number(rawAmount))  // 소수점 제거
 
             balances.push({
               bank: bank.label,
@@ -184,7 +183,7 @@ export default function DataExplorerSection() {
     setIsTransferring(true)
     try {
       // MongoDB 간 이체는 별도 엔드포인트 사용
-      if (senderBank === "mongodb" || receiverBank === "mongodb") {
+      if (senderBank === "mongo" || receiverBank === "mongo") {
         const response = await fetch(`${API_BASE}/mongo/transfer`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -284,7 +283,7 @@ export default function DataExplorerSection() {
                       onChange={(e) => setSelectedDbms(e.target.value)}
                       className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground"
                     >
-                      <option value="">All DBMS</option>
+                      <option value="">Select DBMS</option>
                       {banks.map((bank) => (
                         <option key={bank.value} value={bank.value}>
                           {bank.label}
@@ -422,32 +421,53 @@ export default function DataExplorerSection() {
               </Button>
 
               {bankBalances.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-                  {bankBalances.map((balance, index) => {
-                    const colors = [
-                      { bg: "bg-blue-50 dark:bg-blue-950/20", border: "border-blue-200 dark:border-blue-900", text: "text-blue-600" },
-                      { bg: "bg-indigo-50 dark:bg-indigo-950/20", border: "border-indigo-200 dark:border-indigo-900", text: "text-indigo-600" },
-                      { bg: "bg-green-50 dark:bg-green-950/20", border: "border-green-200 dark:border-green-900", text: "text-green-600" },
-                      { bg: "bg-orange-50 dark:bg-orange-950/20", border: "border-orange-200 dark:border-orange-900", text: "text-orange-600" },
-                    ]
-                    const color = colors[index] || colors[0]
-
-                    return (
-                      <div
-                        key={balance.bank}
-                        className={`${color.bg} rounded-lg p-4 border ${color.border}`}
-                      >
+                <>
+                  {/* Total Sum Card */}
+                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20 rounded-lg p-6 border-2 border-purple-200 dark:border-purple-900 mb-6">
+                    <div className="flex items-center justify-between">
+                      <div>
                         <div className="flex items-center gap-2 mb-2">
-                          <Database className={`h-5 w-5 ${color.text}`} />
-                          <span className="text-sm font-medium text-muted-foreground">{balance.bank}</span>
+                          <DollarSign className="h-6 w-6 text-purple-600" />
+                          <span className="text-lg font-semibold text-purple-900 dark:text-purple-100">Total Balance (All Banks)</span>
                         </div>
-                        <p className={`text-3xl font-bold ${color.text}`}>
-                          ₩{balance.total_amount.toLocaleString()}
+                        <p className="text-5xl font-bold text-purple-600">
+                          ₩{bankBalances.reduce((sum, b) => sum + b.total_amount, 0).toLocaleString()}
                         </p>
                       </div>
-                    )
-                  })}
-                </div>
+                      <div className="text-right text-sm text-muted-foreground">
+                        <p>{bankBalances.length} databases</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Individual Bank Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {bankBalances.map((balance, index) => {
+                      const colors = [
+                        { bg: "bg-blue-50 dark:bg-blue-950/20", border: "border-blue-200 dark:border-blue-900", text: "text-blue-600" },
+                        { bg: "bg-indigo-50 dark:bg-indigo-950/20", border: "border-indigo-200 dark:border-indigo-900", text: "text-indigo-600" },
+                        { bg: "bg-green-50 dark:bg-green-950/20", border: "border-green-200 dark:border-green-900", text: "text-green-600" },
+                        { bg: "bg-orange-50 dark:bg-orange-950/20", border: "border-orange-200 dark:border-orange-900", text: "text-orange-600" },
+                      ]
+                      const color = colors[index] || colors[0]
+
+                      return (
+                        <div
+                          key={balance.bank}
+                          className={`${color.bg} rounded-lg p-4 border ${color.border}`}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Database className={`h-5 w-5 ${color.text}`} />
+                            <span className="text-sm font-medium text-muted-foreground">{balance.bank}</span>
+                          </div>
+                          <p className={`text-3xl font-bold ${color.text}`}>
+                            ₩{balance.total_amount.toLocaleString()}
+                          </p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
               ) : (
                 <div className="bg-muted/50 p-8 rounded-lg text-center">
                   <DollarSign className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-20" />

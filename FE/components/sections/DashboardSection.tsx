@@ -2,9 +2,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Database, Server, Activity, Zap, Play, Square, RotateCcw, TrendingUp, Clock, CheckCircle2, XCircle, Send } from "lucide-react"
+import { Database, Server, Activity, Zap, Play, Square, RotateCcw, TrendingUp, Clock, CheckCircle2, XCircle, Send, Trash2, AlertTriangle } from "lucide-react"
 import { ResponsiveContainer, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, Area } from "recharts"
 import type { ConnectionItem, PerformancePoint, ServerStates, DBKey } from "@/lib/types"
+import { useState } from "react"
 
 type RDGStats = {
   uptime_sec: number
@@ -36,6 +37,17 @@ export default function DashboardSection({
   rdgStats = null,
   rdgRunning = false,
 }: Props) {
+  const [resetPassword, setResetPassword] = useState("")
+  const [showPasswordInput, setShowPasswordInput] = useState(false)
+  const [resetting, setResetting] = useState(false)
+  const [resetResult, setResetResult] = useState<{ success: boolean; message: string } | null>(null)
+
+  // RDG Control States
+  const [rdgPassword, setRdgPassword] = useState("")
+  const [showRdgPassword, setShowRdgPassword] = useState(false)
+  const [rdgAction, setRdgAction] = useState<"start" | "stop" | null>(null)
+  const [rdgProcessing, setRdgProcessing] = useState(false)
+  const [rdgResult, setRdgResult] = useState<{ success: boolean; message: string } | null>(null)
 
   // 시간 포맷 헬퍼 함수
   const formatUptime = (seconds: number) => {
@@ -45,6 +57,92 @@ export default function DashboardSection({
     if (hours > 0) return `${hours}h ${minutes}m ${secs}s`
     if (minutes > 0) return `${minutes}m ${secs}s`
     return `${secs}s`
+  }
+
+  // 환경 리셋 핸들러
+  const handleResetEnvironment = async () => {
+    if (!resetPassword) {
+      setResetResult({ success: false, message: "Password is required" })
+      return
+    }
+
+    setResetting(true)
+    setResetResult(null)
+
+    try {
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
+      const response = await fetch(`${API_BASE}/system/reset`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: resetPassword }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.data?.success) {
+        setResetResult({ success: true, message: data.data.message })
+        setShowPasswordInput(false)
+        setResetPassword("")
+      } else {
+        setResetResult({
+          success: false,
+          message: data.message || data.data?.message || "Reset failed",
+        })
+      }
+    } catch (error) {
+      setResetResult({
+        success: false,
+        message: error instanceof Error ? error.message : "Network error",
+      })
+    } finally {
+      setResetting(false)
+    }
+  }
+
+  // RDG 컨트롤 핸들러
+  const handleRdgControl = async () => {
+    if (!rdgPassword || !rdgAction) {
+      setRdgResult({ success: false, message: "Password is required" })
+      return
+    }
+
+    setRdgProcessing(true)
+    setRdgResult(null)
+
+    try {
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
+      const response = await fetch(`${API_BASE}/rdg/${rdgAction}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: rdgPassword }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.ok) {
+        setRdgResult({
+          success: true,
+          message: `RDG ${rdgAction === "start" ? "started" : "stopped"} successfully`
+        })
+        setShowRdgPassword(false)
+        setRdgPassword("")
+        setRdgAction(null)
+        // Refresh page after 1 second to update RDG status
+        setTimeout(() => window.location.reload(), 1000)
+      } else {
+        setRdgResult({
+          success: false,
+          message: data.error || `Failed to ${rdgAction} RDG`,
+        })
+      }
+    } catch (error) {
+      setRdgResult({
+        success: false,
+        message: error instanceof Error ? error.message : "Network error",
+      })
+    } finally {
+      setRdgProcessing(false)
+    }
   }
 
 
@@ -189,8 +287,11 @@ export default function DashboardSection({
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-card-foreground">RDG Statistics</CardTitle>
-                <CardDescription>Random Data Generator Performance Metrics</CardDescription>
+                <CardTitle className="text-card-foreground flex items-center gap-2">
+                  <Activity className="h-5 w-5" />
+                  RDG Controller
+                </CardTitle>
+                <CardDescription>Random Data Generator Control & Statistics</CardDescription>
               </div>
               {rdgRunning && (
                 <Badge variant="default" className="bg-green-500">
@@ -198,108 +299,259 @@ export default function DashboardSection({
                   Running
                 </Badge>
               )}
-              {!rdgRunning && rdgStats && (
+              {!rdgRunning && (
                 <Badge variant="secondary">Stopped</Badge>
               )}
             </div>
           </CardHeader>
           <CardContent>
-            {rdgStats ? (
-              <div className="space-y-4">
-                {/* 주요 메트릭 그리드 */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-3 border border-blue-200 dark:border-blue-900">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Send className="h-4 w-4 text-blue-600" />
-                      <span className="text-xs text-muted-foreground">Total Sent</span>
+            <div className="space-y-4">
+              {/* RDG 통계 (Running일 때만 표시) */}
+              {rdgRunning && rdgStats && (
+                <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground">Total Sent</p>
+                      <p className="text-lg font-bold text-blue-600">{rdgStats.sent.toLocaleString()}</p>
                     </div>
-                    <p className="text-2xl font-bold text-blue-600">{rdgStats.sent.toLocaleString()}</p>
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground">Success</p>
+                      <p className="text-lg font-bold text-green-600">{rdgStats.ok.toLocaleString()}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground">Failed</p>
+                      <p className="text-lg font-bold text-red-600">{rdgStats.fail.toLocaleString()}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground">Actual RPS</p>
+                      <p className="text-lg font-bold text-purple-600">{rdgStats.actual_rps.toFixed(2)}</p>
+                    </div>
                   </div>
-
-                  <div className="bg-green-50 dark:bg-green-950/20 rounded-lg p-3 border border-green-200 dark:border-green-900">
-                    <div className="flex items-center gap-2 mb-1">
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
-                      <span className="text-xs text-muted-foreground">Success</span>
-                    </div>
-                    <p className="text-2xl font-bold text-green-600">{rdgStats.ok.toLocaleString()}</p>
-                  </div>
-
-                  <div className="bg-red-50 dark:bg-red-950/20 rounded-lg p-3 border border-red-200 dark:border-red-900">
-                    <div className="flex items-center gap-2 mb-1">
-                      <XCircle className="h-4 w-4 text-red-600" />
-                      <span className="text-xs text-muted-foreground">Failed</span>
-                    </div>
-                    <p className="text-2xl font-bold text-red-600">{rdgStats.fail.toLocaleString()}</p>
-                  </div>
-
-                  <div className="bg-purple-50 dark:bg-purple-950/20 rounded-lg p-3 border border-purple-200 dark:border-purple-900">
-                    <div className="flex items-center gap-2 mb-1">
-                      <TrendingUp className="h-4 w-4 text-purple-600" />
-                      <span className="text-xs text-muted-foreground">Actual RPS</span>
-                    </div>
-                    <p className="text-2xl font-bold text-purple-600">{rdgStats.actual_rps.toFixed(2)}</p>
+                  <div className="text-sm text-center text-muted-foreground pt-2 border-t">
+                    Uptime: {formatUptime(rdgStats.uptime_sec)} | Success Rate: {rdgStats.success_rate.toFixed(2)}%
                   </div>
                 </div>
+              )}
 
-                {/* 상세 정보 */}
-                <div className="space-y-2 pt-2 border-t">
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">Uptime</span>
-                    </div>
-                    <span className="font-medium">{formatUptime(rdgStats.uptime_sec)}</span>
+              {/* Password Input (shown when button clicked) */}
+              {showRdgPassword && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium text-card-foreground block mb-2">
+                      Enter Password to {rdgAction === "start" ? "Start" : "Stop"} RDG
+                    </label>
+                    <input
+                      type="password"
+                      value={rdgPassword}
+                      onChange={(e) => setRdgPassword(e.target.value)}
+                      placeholder="Enter RDG password"
+                      className="w-full px-3 py-2 border border-border rounded-md bg-background text-card-foreground"
+                      disabled={rdgProcessing}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleRdgControl()
+                      }}
+                    />
                   </div>
-
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Success Rate</span>
-                    <div className="flex items-center gap-2">
-                      <Progress value={rdgStats.success_rate} className="w-20 h-2" />
-                      <span className="font-medium">{rdgStats.success_rate.toFixed(2)}%</span>
-                    </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={rdgAction === "start" ? "default" : "destructive"}
+                      className="flex-1"
+                      onClick={handleRdgControl}
+                      disabled={rdgProcessing || !rdgPassword}
+                    >
+                      {rdgProcessing ? "Processing..." : `Confirm ${rdgAction === "start" ? "Start" : "Stop"}`}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowRdgPassword(false)
+                        setRdgPassword("")
+                        setRdgAction(null)
+                        setRdgResult(null)
+                      }}
+                      disabled={rdgProcessing}
+                    >
+                      Cancel
+                    </Button>
                   </div>
+                </div>
+              )}
 
-                  {rdgStats.avg_latency_ms > 0 && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Avg Latency</span>
-                      <span className="font-medium">{rdgStats.avg_latency_ms.toFixed(2)}ms</span>
-                    </div>
+              {/* Control Buttons (shown when password input hidden) */}
+              {!showRdgPassword && (
+                <div className="space-y-2">
+                  {!rdgRunning ? (
+                    <Button
+                      variant="default"
+                      className="w-full bg-green-600 hover:bg-green-700"
+                      onClick={() => {
+                        setRdgAction("start")
+                        setShowRdgPassword(true)
+                        setRdgResult(null)
+                      }}
+                    >
+                      <Play className="h-4 w-4 mr-2" />
+                      Start RDG
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="destructive"
+                      className="w-full"
+                      onClick={() => {
+                        setRdgAction("stop")
+                        setShowRdgPassword(true)
+                        setRdgResult(null)
+                      }}
+                    >
+                      <Square className="h-4 w-4 mr-2" />
+                      Stop RDG
+                    </Button>
                   )}
                 </div>
-              </div>
-            ) : (
-              <div className="h-[260px] flex items-center justify-center text-muted-foreground">
-                <div className="text-center">
-                  <Activity className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                  <p>No RDG data available</p>
-                  <p className="text-sm">Start RDG to see statistics</p>
+              )}
+
+              {/* Result Message */}
+              {rdgResult && (
+                <div
+                  className={`p-3 rounded-lg border ${
+                    rdgResult.success
+                      ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900"
+                      : "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900"
+                  }`}
+                >
+                  <p
+                    className={`text-sm font-medium ${
+                      rdgResult.success ? "text-green-900 dark:text-green-200" : "text-red-900 dark:text-red-200"
+                    }`}
+                  >
+                    {rdgResult.message}
+                  </p>
                 </div>
+              )}
+
+              {/* Info */}
+              <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t">
+                <p>• RDG generates random transactions across all DBMS</p>
+                <p>• Change password via RDG_PASSWORD environment variable</p>
               </div>
-            )}
+            </div>
           </CardContent>
         </Card>
 
         <Card className="bg-card border-border">
           <CardHeader>
-            <CardTitle className="text-card-foreground">Connection Status</CardTitle>
-            <CardDescription>Current connections vs maximum capacity</CardDescription>
+            <CardTitle className="text-card-foreground flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Reset Environment
+            </CardTitle>
+            <CardDescription>Clear all transaction data and reset account balances</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {connectionData.map((db) => (
-                <div key={db.name} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: db.color }} />
-                    <span className="text-sm font-medium text-card-foreground">{db.name}</span>
+              {/* Warning Message */}
+              <div className="flex items-start gap-2 p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900 rounded-lg">
+                <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5 flex-shrink-0" />
+                <div className="text-sm text-orange-900 dark:text-orange-200">
+                  <p className="font-semibold mb-1">Warning: This action cannot be undone</p>
+                  <ul className="list-disc list-inside space-y-1 text-xs">
+                    <li>Deletes all transaction data (MySQL, PostgreSQL, Oracle, MongoDB)</li>
+                    <li>Resets all account balances to initial state</li>
+                    <li>Resets auto-increment sequences</li>
+                    <li>Cannot be performed while RDG is running</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* RDG Running Warning */}
+              {rdgRunning && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-lg">
+                  <AlertTriangle className="h-5 w-5 text-red-600" />
+                  <p className="text-sm text-red-900 dark:text-red-200 font-medium">
+                    RDG is currently running. Stop RDG before resetting.
+                  </p>
+                </div>
+              )}
+
+              {/* Password Input (shown when button clicked) */}
+              {showPasswordInput && !rdgRunning && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium text-card-foreground block mb-2">
+                      Enter Password to Confirm
+                    </label>
+                    <input
+                      type="password"
+                      value={resetPassword}
+                      onChange={(e) => setResetPassword(e.target.value)}
+                      placeholder="Enter reset password"
+                      className="w-full px-3 py-2 border border-border rounded-md bg-background text-card-foreground"
+                      disabled={resetting}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleResetEnvironment()
+                      }}
+                    />
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-muted-foreground">
-                      {db.connections}/{db.maxConnections}
-                    </span>
-                    <Progress value={(db.connections / db.maxConnections) * 100} className="w-20 h-2" />
+                  <div className="flex gap-2">
+                    <Button
+                      variant="destructive"
+                      className="flex-1"
+                      onClick={handleResetEnvironment}
+                      disabled={resetting || !resetPassword}
+                    >
+                      {resetting ? "Resetting..." : "Confirm Reset"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowPasswordInput(false)
+                        setResetPassword("")
+                        setResetResult(null)
+                      }}
+                      disabled={resetting}
+                    >
+                      Cancel
+                    </Button>
                   </div>
                 </div>
-              ))}
+              )}
+
+              {/* Reset Button (shown when password input hidden) */}
+              {!showPasswordInput && !rdgRunning && (
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={() => setShowPasswordInput(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Reset Environment
+                </Button>
+              )}
+
+              {/* Result Message */}
+              {resetResult && (
+                <div
+                  className={`p-3 rounded-lg border ${
+                    resetResult.success
+                      ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900"
+                      : "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900"
+                  }`}
+                >
+                  <p
+                    className={`text-sm font-medium ${
+                      resetResult.success ? "text-green-900 dark:text-green-200" : "text-red-900 dark:text-red-200"
+                    }`}
+                  >
+                    {resetResult.message}
+                  </p>
+                </div>
+              )}
+
+              {/* Info */}
+              <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t">
+                <p>• After reset: Each DB's accounts (n00001~n00005) will have ₩100,000,000 balance</p>
+                <p>• Total initial balance: ₩2,000,000,000 (₩100,000,000 × 5 accounts × 4 DBMS)</p>
+                <p>• Change password via RESET_PASSWORD environment variable</p>
+              </div>
             </div>
           </CardContent>
         </Card>

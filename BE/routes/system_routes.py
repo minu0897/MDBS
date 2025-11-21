@@ -101,3 +101,108 @@ def db_conn_counts():
         return ok(data)
     except Exception as e:
         return fail(str(e), 500)
+
+@sys_bp.post("/reset")
+def reset_environment():
+    """
+    시뮬레이션 환경 초기화 (Reset Environment)
+    - 모든 DBMS의 트랜잭션 데이터 삭제 및 계정 잔액 초기화
+    - Password 검증 필요
+    - RDG 실행 중에는 차단
+
+    Body: {"password": "your_password"}
+    """
+    from flask import current_app
+    from services.rdg_runner import runner
+    from db.router import get_adapter
+    from services.mongo_tx_service import MongoTxService
+    import oracledb
+
+    try:
+        data = request.get_json(force=True) or {}
+        password = data.get("password", "")
+
+        # 1. Password 검증
+        RESET_PASSWORD = os.getenv("RESET_PASSWORD", "0897")
+        if password != RESET_PASSWORD:
+            return fail("Invalid password", 403)
+
+        # 2. RDG 실행 상태 체크
+        rdg_status = runner.status()
+        if rdg_status.get("running"):
+            return fail("Cannot reset while RDG is running. Please stop RDG first.", 400)
+
+        # 3. 각 DBMS 리셋 실행
+        results = {}
+        errors = []
+
+        # MySQL 리셋
+        try:
+            mysql_adapter = get_adapter("mysql")
+            reset_sql_path = os.path.join("sql", "mysql", "reset.data_and_sequences.sql")
+            with open(reset_sql_path, "r", encoding="utf-8") as f:
+                mysql_sql = f.read()
+            mysql_adapter.execute_query(mysql_sql)
+            results["mysql"] = "OK"
+        except Exception as e:
+            errors.append(f"MySQL: {str(e)}")
+            results["mysql"] = f"FAILED: {str(e)}"
+
+        # PostgreSQL 리셋
+        try:
+            pg_adapter = get_adapter("postgres")
+            reset_sql_path = os.path.join("sql", "postgres", "reset.data_and_sequences.sql")
+            with open(reset_sql_path, "r", encoding="utf-8") as f:
+                pg_sql = f.read()
+            pg_adapter.execute_query(pg_sql)
+            results["postgres"] = "OK"
+        except Exception as e:
+            errors.append(f"PostgreSQL: {str(e)}")
+            results["postgres"] = f"FAILED: {str(e)}"
+
+        # Oracle 리셋
+        try:
+            oracle_adapter = get_adapter("oracle")
+            reset_sql_path = os.path.join("sql", "oracle", "reset.data_and_sequences.sql")
+            with open(reset_sql_path, "r", encoding="utf-8") as f:
+                oracle_sql = f.read()
+
+            # Oracle은 PL/SQL 블록이므로 특별 처리
+            conn = oracle_adapter.pool.acquire()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(oracle_sql)
+                conn.commit()
+                results["oracle"] = "OK"
+            finally:
+                oracle_adapter.pool.release(conn)
+        except Exception as e:
+            errors.append(f"Oracle: {str(e)}")
+            results["oracle"] = f"FAILED: {str(e)}"
+
+        # MongoDB 리셋
+        try:
+            mongo_svc = MongoTxService()
+            mongo_result = mongo_svc.reset_data()
+            results["mongo"] = "OK"
+        except Exception as e:
+            errors.append(f"MongoDB: {str(e)}")
+            results["mongo"] = f"FAILED: {str(e)}"
+
+        # 4. 결과 반환
+        if errors:
+            return ok({
+                "success": False,
+                "message": "Some databases failed to reset",
+                "results": results,
+                "errors": errors
+            })
+        else:
+            return ok({
+                "success": True,
+                "message": "All databases reset successfully",
+                "results": results
+            })
+
+    except Exception as e:
+        return fail(str(e), 500)

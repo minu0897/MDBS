@@ -125,23 +125,35 @@ export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [selectedDBMS, setSelectedDBMS] = useState<DBKey>("mysql")
 
-  // 1) SWR 폴링으로 서버 상태 주기 업데이트
-  const { data, error, isValidating, mutate, isLoading: isLoadingStats } = useSWR<DockerStatsResponse>("/system/docker/stats", fetcher, {
-    refreshInterval: 3000, // 3초마다 재검증
-    revalidateOnFocus: false,
-  })
+  // 1) SWR 폴링으로 서버 상태 주기 업데이트 (dashboard 섹션에서만)
+  const { data, error, isValidating, mutate, isLoading: isLoadingStats } = useSWR<DockerStatsResponse>(
+    activeSection === "dashboard" ? "/system/docker/stats" : null,
+    fetcher,
+    {
+      refreshInterval: activeSection === "dashboard" ? 3000 : 0, // dashboard일 때만 3초마다 재검증
+      revalidateOnFocus: false,
+    }
+  )
 
-  // 2) SWR 폴링으로 연결 수 주기 업데이트
-  const { data: connCountData, isLoading: isLoadingConnCount } = useSWR("/system/conn-counts", connCountFetcher, {
-    refreshInterval: 5000, // 5초마다 재검증
-    revalidateOnFocus: false,
-  })
+  // 2) SWR 폴링으로 연결 수 주기 업데이트 (dashboard 섹션에서만)
+  const { data: connCountData, isLoading: isLoadingConnCount } = useSWR(
+    activeSection === "dashboard" ? "/system/conn-counts" : null,
+    connCountFetcher,
+    {
+      refreshInterval: activeSection === "dashboard" ? 5000 : 0, // dashboard일 때만 5초마다 재검증
+      revalidateOnFocus: false,
+    }
+  )
 
-  // 3) SWR 폴링으로 RDG 통계 주기 업데이트
-  const { data: rdgData, isLoading: isLoadingRdg } = useSWR("/rdg/status", rdgStatsFetcher, {
-    refreshInterval: 10000, // 10초마다 재검증
-    revalidateOnFocus: false,
-  })
+  // 3) SWR 폴링으로 RDG 통계 주기 업데이트 (dashboard 섹션에서만)
+  const { data: rdgData, isLoading: isLoadingRdg } = useSWR(
+    activeSection === "dashboard" ? "/rdg/status" : null,
+    rdgStatsFetcher,
+    {
+      refreshInterval: activeSection === "dashboard" ? 10000 : 0, // dashboard일 때만 10초마다 재검증
+      revalidateOnFocus: false,
+    }
+  )
 
   // 로딩 상태 (최초 로딩 시에만 true)
   const isLoading = isLoadingStats || isLoadingConnCount

@@ -23,6 +23,7 @@ class RDGConfig:
     min_amount: int = 1_000
     max_amount: int = 100_000
     allow_same_db: bool = True
+    log_level: str = "DEBUG"
 
     def __post_init__(self):
         if self.active_dbms is None:
@@ -57,6 +58,7 @@ class RDGRunner:
         env["MIN_AMOUNT"] = str(cfg.min_amount)
         env["MAX_AMOUNT"] = str(cfg.max_amount)
         env["ALLOW_SAME_DB"] = str(cfg.allow_same_db)
+        env["LOG_LEVEL"] = cfg.log_level
         if cfg.active_dbms:
             env["ACTIVE_DBMS"] = ",".join(cfg.active_dbms)
         env["ENV"] = "dev"  # 또는 "server"

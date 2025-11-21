@@ -71,3 +71,17 @@ class MongoAdapter:
         kwargs.setdefault("allowDiskUse", False)
         cur = self.db[collection].aggregate(pipeline, **kwargs)
         return _to_jsonable_list(list(cur))
+
+    def delete_many(self, collection: str, query: Dict[str, Any]) -> int:
+        """Delete multiple documents and return count of deleted documents"""
+        result = self.db[collection].delete_many(query)
+        return result.deleted_count
+
+    def update_many(self, collection: str, query: Dict[str, Any], update: Dict[str, Any]) -> int:
+        """Update multiple documents and return count of modified documents"""
+        result = self.db[collection].update_many(query, update)
+        return result.modified_count
+
+    def drop_collection(self, collection: str) -> None:
+        """Drop entire collection (fast delete)"""
+        self.db[collection].drop()

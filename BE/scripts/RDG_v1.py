@@ -42,7 +42,11 @@ class RDGConfig:
 
 # ==================== 로깅 설정 ====================
 def setup_logger(log_level: int = logging.INFO) -> logging.Logger:
-    """로거 설정"""
+    """로거 설정 - 24시간마다 로그 파일 로테이션"""
+    from logging.handlers import TimedRotatingFileHandler
+    import glob
+    import os
+
     logger = logging.getLogger("RDG")
     logger.setLevel(log_level)
     logger.propagate = False  # 부모 로거로 전파 방지
@@ -51,9 +55,38 @@ def setup_logger(log_level: int = logging.INFO) -> logging.Logger:
     if logger.hasHandlers():
         logger.handlers.clear()
 
-    # 파일 핸들러
-    file_handler = logging.FileHandler('rdg_v1.log', mode='w', encoding='utf-8')
+    # 기존 로그 파일 번호 확인 (rdg_v1_1.log, rdg_v1_2.log 등)
+    log_files = glob.glob('rdg_v1_*.log')
+    if log_files:
+        # 가장 큰 번호 찾기
+        numbers = []
+        for f in log_files:
+            try:
+                num = int(f.replace('rdg_v1_', '').replace('.log', ''))
+                numbers.append(num)
+            except ValueError:
+                continue
+        next_number = max(numbers) + 1 if numbers else 1
+    else:
+        next_number = 1
+
+    log_filename = f'rdg_v1_{next_number}.log'
+
+    # 24시간마다 로테이션하는 파일 핸들러
+    # when='midnight': 자정마다 로테이션
+    # interval=1: 1일마다
+    # backupCount=30: 최대 30개 파일 보관
+    file_handler = TimedRotatingFileHandler(
+        log_filename,
+        when='midnight',
+        interval=1,
+        backupCount=30,
+        encoding='utf-8'
+    )
     file_handler.setLevel(logging.DEBUG)
+
+    # 로테이션 시 파일명 형식: rdg_v1_N.log.YYYY-MM-DD
+    file_handler.suffix = "%Y-%m-%d"
 
     # 콘솔 핸들러
     console_handler = logging.StreamHandler()
@@ -69,6 +102,8 @@ def setup_logger(log_level: int = logging.INFO) -> logging.Logger:
 
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
+
+    logger.info(f"=== RDG 로그 시작 (파일: {log_filename}) ===")
 
     return logger
 
@@ -236,26 +271,42 @@ class APIClient:
         max_retries = 2
         for attempt in range(max_retries):
             try:
+                logger.debug(f"[{dbms}/{proc_name}] 호출 시작 (시도 {attempt + 1}/{max_retries}) - args: {args}")
                 async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                     result = await resp.json()
                     if resp.status >= 200 and resp.status < 300:
-                        return result.get("data")
+                        data = result.get("data")
+                        logger.debug(f"[{dbms}/{proc_name}] 성공 - 결과: {data}")
+                        return data
                     else:
-                        logger.error(f"API 에러 [{dbms}/{proc_name}]: {result}")
+                        logger.error(f"⚠️ API 에러 [{dbms}/{proc_name}] - HTTP {resp.status}")
+                        logger.error(f"   요청: {payload}")
+                        logger.error(f"   응답: {result}")
                         return None
             except asyncio.TimeoutError:
-                logger.error(f"타임아웃 [{dbms}/{proc_name}] (시도 {attempt + 1}/{max_retries})")
-                if attempt == max_retries - 1:
+                logger.error(f"⏱️ 타임아웃 [{dbms}/{proc_name}] (시도 {attempt + 1}/{max_retries})")
+                logger.error(f"   요청: proc={proc_name}, args={args}")
+                if attempt < max_retries - 1:
+                    logger.warning(f"   → 재시도 중...")
+                else:
+                    logger.error(f"   → 최종 실패 (타임아웃)")
                     return None
             except (aiohttp.ClientPayloadError, aiohttp.ClientConnectionError, ConnectionResetError) as e:
                 # 네트워크 오류: 재시도 가능
-                logger.warning(f"네트워크 오류 [{dbms}/{proc_name}] (시도 {attempt + 1}/{max_retries}): {e}")
-                if attempt == max_retries - 1:
-                    logger.error(f"최종 실패 [{dbms}/{proc_name}]: {e}")
+                logger.warning(f"🔌 네트워크 오류 [{dbms}/{proc_name}] (시도 {attempt + 1}/{max_retries}): {type(e).__name__}")
+                logger.warning(f"   요청: proc={proc_name}, args={args}")
+                logger.warning(f"   오류 상세: {e}")
+                if attempt < max_retries - 1:
+                    logger.warning(f"   → 0.5초 후 재시도...")
+                    await asyncio.sleep(0.5)
+                else:
+                    logger.error(f"   → 최종 실패 (네트워크 오류)")
+                    logger.error(f"   ⚠️ 주의: DB에서 프로시저가 실행되었을 수 있음 (멱등성 확인 필요)")
                     return None
-                await asyncio.sleep(0.5)  # 재시도 전 잠깐 대기
             except Exception as e:
-                logger.error(f"예외 발생 [{dbms}/{proc_name}]: {e}")
+                logger.error(f"💥 예외 발생 [{dbms}/{proc_name}]: {type(e).__name__}")
+                logger.error(f"   요청: proc={proc_name}, args={args}")
+                logger.error(f"   오류 상세: {e}")
                 return None
 
         return None
@@ -369,12 +420,16 @@ class TransactionProcessor:
             )
 
         if not result or result.get("status") != "1":
-            logger.warning(f"  [{idem_key}] 송금 보류 실패: {result}")
+            logger.warning(f"❌ [{idem_key}] 송금 보류 실패")
+            logger.warning(f"   DBMS: {dbms}, src: {src_account}, dst: {dst_account}, amount: {amount}")
+            logger.warning(f"   결과: {result}")
             # 타임아웃(result=None) 시 DB에 Hold가 생성되었을 가능성이 있으므로 Release 시도
             if result is None:
-                logger.info(f"  [{idem_key}] 타임아웃 감지 - Hold 해제 시도 ({dbms})")
+                logger.info(f"⚠️ [{idem_key}] 타임아웃 감지 - Hold 해제 시도 ({dbms})")
                 await self._release_hold(session, dbms, idem_key)
             return False
+
+        logger.debug(f"✅ [{idem_key}] Step 1 완료 - txn_id: {result.get('txn_id')}")
 
         # Step 2: 이체 확정
         logger.debug(f"  [{idem_key}] Step 2: 이체 확정 ({dbms})")
@@ -397,12 +452,16 @@ class TransactionProcessor:
             )
 
         if not result or result.get("status") != "2":
-            logger.warning(f"  [{idem_key}] 이체 확정 실패: {result}")
+            logger.warning(f"❌ [{idem_key}] 이체 확정 실패")
+            logger.warning(f"   DBMS: {dbms}, src: {src_account}, dst: {dst_account}, amount: {amount}")
+            logger.warning(f"   결과: {result}")
             # 실패 시 hold 해제
+            logger.info(f"🔄 [{idem_key}] Hold 해제 시도")
             await self._release_hold(session, dbms, idem_key)
             return False
 
-        logger.info(f"✓ 내부 이체 완료 [{idem_key}]: {dbms}({src_account} → {dst_account}), {amount}원")
+        logger.info(f"✅ 내부 이체 완료 [{idem_key}]: {dbms}({src_account} → {dst_account}), {amount}원")
+        logger.debug(f"   결과: {result}")
         return True
 
     async def _process_external_transfer(

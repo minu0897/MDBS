@@ -254,3 +254,75 @@ class MongoTxService:
 
         self.TXN.update_one({"_id": txn_id}, {"$set": {"status": "2"}})
         return {"status": "2", "result": "OK"}
+
+    # 6) 송금 보류 해제(sp_remittance_release 대체)
+    def remittance_release(self, body: Dict[str, Any]):
+        idem = body["idempotency_key"]
+
+        tx = self.TXN.find_one({"idempotency_key": idem})
+        if not tx:
+            return {"status": "1", "result": "TX_NOT_FOUND"}
+
+        txn_id = tx["_id"]
+        src = tx["src_account_id"]
+        amt128 = tx["amount"] if isinstance(tx["amount"], Decimal128) else _d128(tx["amount"])
+        amt = amt128.to_decimal()
+
+        hold = self.HOLD.find_one({"idempotency_key": idem})
+        if not hold:
+            return {"status": "3", "result": "HOLD_NOT_FOUND"}
+        if hold.get("status") == "3":
+            return {"status": "3", "result": "ALREADY_RELEASED"}
+        if hold.get("status") == "2":
+            return {"status": "2", "result": "ALREADY_CAPTURED"}
+
+        # hold_amount 감소
+        self.ACC.update_one({"_id": src}, {"$inc": {"hold_amount": -amt128}})
+
+        # hold 상태 변경
+        self.HOLD.update_one({"idempotency_key": idem}, {"$set": {"status": "3"}})
+        self.TXN.update_one({"_id": txn_id}, {"$set": {"status": "3"}})
+
+        return {"status": "3", "result": "OK"}
+
+    # 7) 데이터 리셋 (TRUNCATE 대체)
+    def reset_data(self, test_account_ids: list = None):
+        """
+        MongoDB 데이터 리셋 (TRUNCATE 대체)
+        - 트랜잭션 데이터 삭제 (drop collection으로 빠르게)
+        - 계정 잔액 초기화
+        - 특정 계정에 초기 잔액 설정
+
+        Args:
+            test_account_ids: 초기 잔액(100,000,000)을 설정할 계정 ID 리스트
+                            기본값: [100001, 100101] (MongoDB 테스트 계정)
+        """
+        if test_account_ids is None:
+            test_account_ids = [100001, 100101]
+
+        # 1. 트랜잭션 데이터 삭제 (drop으로 빠르게)
+        self.LEDGER.drop()
+        self.HOLD.drop()
+        self.TXN.drop()
+
+        # 인덱스 재생성 (drop 후 필요)
+        self.ensure_indexes()
+
+        # 2. 계정 잔액 초기화
+        self.ACC.update_many(
+            {},
+            {"$set": {"balance": _d128(0), "hold_amount": _d128(0)}}
+        )
+
+        # 3. 특정 계정에 초기 잔액 설정
+        self.ACC.update_many(
+            {"_id": {"$in": test_account_ids}},
+            {"$set": {"balance": _d128(100000000)}}
+        )
+
+        return {
+            "result": "OK",
+            "message": "MongoDB data reset completed",
+            "test_accounts": test_account_ids,
+            "initial_balance": 100000000
+        }
