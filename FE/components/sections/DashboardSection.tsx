@@ -110,7 +110,8 @@ export default function DashboardSection({
     setRdgResult(null)
 
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
+      // RDG는 무조건 서버에서 실행 (DOCKER_API_BASE 사용)
+      const API_BASE = process.env.NEXT_PUBLIC_DOCKER_API_URL || "http://localhost:5000"
       const response = await fetch(`${API_BASE}/rdg/${rdgAction}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

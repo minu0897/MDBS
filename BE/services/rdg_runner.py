@@ -40,7 +40,20 @@ class RDGRunner:
         # 스크립트 경로 (BE/scripts/run_rdg.py)
         self.scripts_dir = Path(__file__).parent.parent / "scripts"
         self.run_script = self.scripts_dir / "run_rdg.py"
-        self.log_file = self.scripts_dir / "rdg_v1.log"
+
+    def _get_latest_log_file(self) -> Path:
+        """최신 RDG 로그 파일 찾기 (rdg_v1_*.log 중 가장 최근 것)"""
+        import glob
+        log_pattern = str(self.scripts_dir / "rdg_v1_*.log")
+        log_files = glob.glob(log_pattern)
+
+        if not log_files:
+            # 로그 파일이 없으면 기본 경로 반환
+            return self.scripts_dir / "rdg_v1.log"
+
+        # 수정 시간 기준 최신 파일 반환
+        latest_log = max(log_files, key=lambda f: Path(f).stat().st_mtime)
+        return Path(latest_log)
 
     def start(self, cfg: RDGConfig):
         """RDG 프로세스 시작"""
@@ -80,7 +93,8 @@ class RDGRunner:
 
             # 프로세스가 제대로 시작되었는지 확인
             if self._process.poll() is not None:
-                raise RuntimeError(f"RDG process failed to start. Check log file: {self.log_file}")
+                log_file = self._get_latest_log_file()
+                raise RuntimeError(f"RDG process failed to start. Check log file: {log_file}")
 
         except Exception as e:
             self._process = None
@@ -164,29 +178,18 @@ class RDGRunner:
         # 로그 파일에서 통계 파싱 (running 여부와 관계없이 시도)
         stats = self._parse_log_stats()
 
-        # 로그 파일 기반 running 판단 (최근 30초 이내 업데이트 확인)
-        log_based_running = False
-        log_file_age = None
-        if self.log_file.exists():
-            try:
-                log_mtime = self.log_file.stat().st_mtime
-                log_file_age = time.time() - log_mtime
-                if log_file_age < 30:  # 30초 이내 업데이트
-                    log_based_running = True
-            except Exception as e:
-                print(f"[DEBUG] Error checking log file: {e}")
-
-        running = process_running or external_running or log_based_running
+        # 로그 파일 기반 running 판단 제거 (오작동 방지)
+        # 프로세스 존재 여부만으로 판단
+        running = process_running or external_running
         cfg = self._cfg.__dict__ if self._cfg else None
 
         # 디버깅 로그
+        log_file = self._get_latest_log_file()
         print(f"[DEBUG] Running status check:")
         print(f"  - process_running: {process_running}")
         print(f"  - external_running: {external_running}")
-        print(f"  - log_based_running: {log_based_running}")
-        print(f"  - log_file exists: {self.log_file.exists()}")
-        print(f"  - log_file path: {self.log_file}")
-        print(f"  - log_file age: {log_file_age}s" if log_file_age is not None else "  - log_file age: N/A")
+        print(f"  - log_file path: {log_file}")
+        print(f"  - log_file exists: {log_file.exists()}")
         print(f"  - FINAL running: {running}")
 
         return {
@@ -229,16 +232,17 @@ class RDGRunner:
 
     def _parse_log_stats(self) -> Dict:
         """로그 파일에서 통계 파싱"""
-        print(f"[DEBUG] Looking for log file at: {self.log_file}")
-        print(f"[DEBUG] Log file exists: {self.log_file.exists()}")
+        log_file = self._get_latest_log_file()
+        print(f"[DEBUG] Looking for log file at: {log_file}")
+        print(f"[DEBUG] Log file exists: {log_file.exists()}")
 
-        if not self.log_file.exists():
+        if not log_file.exists():
             print(f"[DEBUG] Log file not found, returning empty stats")
             return self._get_empty_stats()
 
         try:
             # 로그 파일의 마지막 통계 리포트 읽기
-            with open(self.log_file, 'r', encoding='utf-8') as f:
+            with open(log_file, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             # 마지막 통계 블록 찾기 (역순으로 검색)
