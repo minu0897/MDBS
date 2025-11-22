@@ -27,7 +27,7 @@ CMD ["flask", "--app", "BE/app.py", "run", "--host=0.0.0.0", "--port=5000", "--d
 # prod (gunicorn)
 ############################
 FROM base AS prod
-ENV GUNICORN_WORKERS=2 GUNICORN_TIMEOUT=60
+ENV GUNICORN_WORKERS=2 GUNICORN_TIMEOUT=120
 USER flask
-# prod는 gunicorn
-CMD ["gunicorn", "--chdir", "BE", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "60", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info", "app:app"]
+# prod는 gunicorn (timeout 120초)
+CMD ["gunicorn", "--chdir", "BE", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info", "app:app"]
