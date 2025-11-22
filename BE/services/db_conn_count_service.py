@@ -63,8 +63,10 @@ def get_oracle_session_count() -> Dict[str, Any]:
 def get_mongo_session_count() -> Dict[str, Any]:
     try:
         from db.mongo_adapter import MongoAdapter
-        mongo_uri = current_app.config["MONGO_URI"]
-        adapter = MongoAdapter(mongo_uri)
+        adapter = MongoAdapter({
+            "uri": current_app.config["MONGO_URI"],
+            "db": current_app.config.get("MONGO_DB", "mdbs")
+        })
 
         # serverStatus는 admin 권한 필요, 대신 currentOp 사용 (일반 사용자도 조회 가능)
         try:

@@ -2,6 +2,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Database, Server, Activity, Zap, Play, Square, RotateCcw, TrendingUp, Clock, CheckCircle2, XCircle, Send, Trash2, AlertTriangle } from "lucide-react"
 import { ResponsiveContainer, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, Area } from "recharts"
 import type { ConnectionItem, PerformancePoint, ServerStates, DBKey } from "@/lib/types"
@@ -44,10 +46,20 @@ export default function DashboardSection({
 
   // RDG Control States
   const [rdgPassword, setRdgPassword] = useState("")
-  const [showRdgPassword, setShowRdgPassword] = useState(false)
+  const [showRdgDialog, setShowRdgDialog] = useState(false)
   const [rdgAction, setRdgAction] = useState<"start" | "stop" | null>(null)
   const [rdgProcessing, setRdgProcessing] = useState(false)
   const [rdgResult, setRdgResult] = useState<{ success: boolean; message: string } | null>(null)
+
+  // RDG Config States
+  const [rdgConfig, setRdgConfig] = useState({
+    rps: 7,
+    concurrent: 10,
+    min_amount: 1000,
+    max_amount: 100000,
+    allow_same_db: true,
+    active_dbms: ["mysql", "postgres", "oracle"] as string[]
+  })
 
   // 시간 포맷 헬퍼 함수
   const formatUptime = (seconds: number) => {
@@ -99,10 +111,25 @@ export default function DashboardSection({
     }
   }
 
+  // DBMS 체크박스 핸들러
+  const handleDbmsToggle = (dbms: string) => {
+    setRdgConfig(prev => ({
+      ...prev,
+      active_dbms: prev.active_dbms.includes(dbms)
+        ? prev.active_dbms.filter(d => d !== dbms)
+        : [...prev.active_dbms, dbms]
+    }))
+  }
+
   // RDG 컨트롤 핸들러
   const handleRdgControl = async () => {
-    if (!rdgPassword || !rdgAction) {
+    if (!rdgPassword) {
       setRdgResult({ success: false, message: "Password is required" })
+      return
+    }
+
+    if (rdgAction === "start" && rdgConfig.active_dbms.length === 0) {
+      setRdgResult({ success: false, message: "At least one DBMS must be selected" })
       return
     }
 
@@ -112,10 +139,16 @@ export default function DashboardSection({
     try {
       // RDG는 무조건 서버에서 실행 (DOCKER_API_BASE 사용)
       const API_BASE = process.env.NEXT_PUBLIC_DOCKER_API_URL || "http://localhost:5000"
+
+      // Start 시에는 설정 포함, Stop 시에는 password만
+      const payload = rdgAction === "start"
+        ? { ...rdgConfig, password: rdgPassword }
+        : { password: rdgPassword }
+
       const response = await fetch(`${API_BASE}/rdg/${rdgAction}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: rdgPassword }),
+        body: JSON.stringify(payload),
       })
 
       const data = await response.json()
@@ -125,7 +158,7 @@ export default function DashboardSection({
           success: true,
           message: `RDG ${rdgAction === "start" ? "started" : "stopped"} successfully`
         })
-        setShowRdgPassword(false)
+        setShowRdgDialog(false)
         setRdgPassword("")
         setRdgAction(null)
         // Refresh page after 1 second to update RDG status
@@ -334,82 +367,36 @@ export default function DashboardSection({
                 </div>
               )}
 
-              {/* Password Input (shown when button clicked) */}
-              {showRdgPassword && (
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-sm font-medium text-card-foreground block mb-2">
-                      Enter Password to {rdgAction === "start" ? "Start" : "Stop"} RDG
-                    </label>
-                    <input
-                      type="password"
-                      value={rdgPassword}
-                      onChange={(e) => setRdgPassword(e.target.value)}
-                      placeholder="Enter RDG password"
-                      className="w-full px-3 py-2 border border-border rounded-md bg-background text-card-foreground"
-                      disabled={rdgProcessing}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleRdgControl()
-                      }}
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant={rdgAction === "start" ? "default" : "destructive"}
-                      className="flex-1"
-                      onClick={handleRdgControl}
-                      disabled={rdgProcessing || !rdgPassword}
-                    >
-                      {rdgProcessing ? "Processing..." : `Confirm ${rdgAction === "start" ? "Start" : "Stop"}`}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setShowRdgPassword(false)
-                        setRdgPassword("")
-                        setRdgAction(null)
-                        setRdgResult(null)
-                      }}
-                      disabled={rdgProcessing}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Control Buttons (shown when password input hidden) */}
-              {!showRdgPassword && (
-                <div className="space-y-2">
-                  {!rdgRunning ? (
-                    <Button
-                      variant="default"
-                      className="w-full bg-green-600 hover:bg-green-700"
-                      onClick={() => {
-                        setRdgAction("start")
-                        setShowRdgPassword(true)
-                        setRdgResult(null)
-                      }}
-                    >
-                      <Play className="h-4 w-4 mr-2" />
-                      Start RDG
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="destructive"
-                      className="w-full"
-                      onClick={() => {
-                        setRdgAction("stop")
-                        setShowRdgPassword(true)
-                        setRdgResult(null)
-                      }}
-                    >
-                      <Square className="h-4 w-4 mr-2" />
-                      Stop RDG
-                    </Button>
-                  )}
-                </div>
-              )}
+              {/* Control Buttons */}
+              <div className="space-y-2">
+                {!rdgRunning ? (
+                  <Button
+                    variant="default"
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    onClick={() => {
+                      setRdgAction("start")
+                      setShowRdgDialog(true)
+                      setRdgResult(null)
+                    }}
+                  >
+                    <Play className="h-4 w-4 mr-2" />
+                    Start RDG
+                  </Button>
+                ) : (
+                  <Button
+                    variant="destructive"
+                    className="w-full"
+                    onClick={() => {
+                      setRdgAction("stop")
+                      setShowRdgDialog(true)
+                      setRdgResult(null)
+                    }}
+                  >
+                    <Square className="h-4 w-4 mr-2" />
+                    Stop RDG
+                  </Button>
+                )}
+              </div>
 
               {/* Result Message */}
               {rdgResult && (
@@ -598,6 +585,188 @@ export default function DashboardSection({
         </CardContent>
       </Card>
     </>
+
+    {/* RDG Config Dialog */}
+    <Dialog open={showRdgDialog} onOpenChange={setShowRdgDialog}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{rdgAction === "start" ? "Start RDG" : "Stop RDG"}</DialogTitle>
+          <DialogDescription>
+            {rdgAction === "start"
+              ? "Configure RDG settings and enter password to start"
+              : "Enter password to stop RDG"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          {/* RDG Configuration (Start only) */}
+          {rdgAction === "start" && (
+            <>
+              {/* Active DBMS */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Active DBMS</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {["mysql", "postgres", "oracle", "mongo"].map((dbms) => (
+                    <div key={dbms} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={dbms}
+                        checked={rdgConfig.active_dbms.includes(dbms)}
+                        onCheckedChange={() => handleDbmsToggle(dbms)}
+                      />
+                      <label
+                        htmlFor={dbms}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 capitalize cursor-pointer"
+                      >
+                        {dbms}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* RPS */}
+              <div className="space-y-2">
+                <label htmlFor="rps" className="text-sm font-medium">
+                  RPS (Requests Per Second)
+                </label>
+                <input
+                  id="rps"
+                  type="number"
+                  value={rdgConfig.rps}
+                  onChange={(e) => setRdgConfig({...rdgConfig, rps: parseInt(e.target.value) || 0})}
+                  className="w-full px-3 py-2 border border-border rounded-md bg-background text-card-foreground"
+                  min="1"
+                  max="1000"
+                />
+              </div>
+
+              {/* Concurrent */}
+              <div className="space-y-2">
+                <label htmlFor="concurrent" className="text-sm font-medium">
+                  Concurrent Limit
+                </label>
+                <input
+                  id="concurrent"
+                  type="number"
+                  value={rdgConfig.concurrent}
+                  onChange={(e) => setRdgConfig({...rdgConfig, concurrent: parseInt(e.target.value) || 0})}
+                  className="w-full px-3 py-2 border border-border rounded-md bg-background text-card-foreground"
+                  min="1"
+                  max="1000"
+                />
+              </div>
+
+              {/* Amount Range */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-2">
+                  <label htmlFor="min_amount" className="text-sm font-medium">
+                    Min Amount
+                  </label>
+                  <input
+                    id="min_amount"
+                    type="number"
+                    value={rdgConfig.min_amount}
+                    onChange={(e) => setRdgConfig({...rdgConfig, min_amount: parseInt(e.target.value) || 0})}
+                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-card-foreground"
+                    min="0"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="max_amount" className="text-sm font-medium">
+                    Max Amount
+                  </label>
+                  <input
+                    id="max_amount"
+                    type="number"
+                    value={rdgConfig.max_amount}
+                    onChange={(e) => setRdgConfig({...rdgConfig, max_amount: parseInt(e.target.value) || 0})}
+                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-card-foreground"
+                    min="0"
+                  />
+                </div>
+              </div>
+
+              {/* Allow Same DB */}
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="allow_same_db"
+                  checked={rdgConfig.allow_same_db}
+                  onCheckedChange={(checked) => setRdgConfig({...rdgConfig, allow_same_db: checked as boolean})}
+                />
+                <label
+                  htmlFor="allow_same_db"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                >
+                  Allow Same DB Transfers
+                </label>
+              </div>
+            </>
+          )}
+
+          {/* Password */}
+          <div className="space-y-2">
+            <label htmlFor="password" className="text-sm font-medium">
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={rdgPassword}
+              onChange={(e) => setRdgPassword(e.target.value)}
+              placeholder="Enter RDG password"
+              className="w-full px-3 py-2 border border-border rounded-md bg-background text-card-foreground"
+              disabled={rdgProcessing}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleRdgControl()
+              }}
+            />
+          </div>
+
+          {/* Result Message */}
+          {rdgResult && (
+            <div
+              className={`p-3 rounded-lg border ${
+                rdgResult.success
+                  ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900"
+                  : "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900"
+              }`}
+            >
+              <p
+                className={`text-sm font-medium ${
+                  rdgResult.success ? "text-green-900 dark:text-green-200" : "text-red-900 dark:text-red-200"
+                }`}
+              >
+                {rdgResult.message}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Dialog Footer */}
+        <div className="flex gap-2">
+          <Button
+            variant={rdgAction === "start" ? "default" : "destructive"}
+            className="flex-1"
+            onClick={handleRdgControl}
+            disabled={rdgProcessing || !rdgPassword}
+          >
+            {rdgProcessing ? "Processing..." : `Confirm ${rdgAction === "start" ? "Start" : "Stop"}`}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowRdgDialog(false)
+              setRdgPassword("")
+              setRdgAction(null)
+              setRdgResult(null)
+            }}
+            disabled={rdgProcessing}
+          >
+            Cancel
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
     </div>
   )
 }

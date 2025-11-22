@@ -19,5 +19,8 @@ def get_adapter(dbms: str):
     if d == "oracle":
         return OracleAdapter(cfg["ORACLE"])
     if d == "mongo":
-        return MongoAdapter(cfg["MONGO_URI"])
+        return MongoAdapter({
+            "uri": cfg["MONGO_URI"],
+            "db": cfg.get("MONGO_DB", "mdbs")
+        })
     raise ValueError(f"Unsupported DBMS: {dbms}")

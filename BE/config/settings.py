@@ -59,6 +59,7 @@ def load_config(app) -> None:
     # ───── MongoDB ─────
     # (.env.dev 기준 키: MONGO_URL)  ← 기존 코드의 MONGO_URI로 매핑
     app.config["MONGO_URI"] = _env("MONGO_URL", "mongodb://localhost:27017/appdb")
+    app.config["MONGO_DB"] = _env("MONGO_DB", "mdbs")
 
         # ───── Oracle ─────
     # 우선 ORACLE_DSN이 있으면 그대로 사용 (SID/Service 자동 판별)

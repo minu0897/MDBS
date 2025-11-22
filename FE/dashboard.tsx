@@ -150,7 +150,7 @@ export default function Dashboard() {
     activeSection === "dashboard" ? "/rdg/status" : null,
     rdgStatsFetcher,
     {
-      refreshInterval: activeSection === "dashboard" ? 10000 : 0, // dashboard일 때만 10초마다 재검증
+      refreshInterval: activeSection === "dashboard" ? 5000 : 0, // dashboard일 때만 5초마다 재검증
       revalidateOnFocus: false,
     }
   )

@@ -696,8 +696,8 @@ class RDGRunner:
 
                     tick_count += 1
 
-                    # 10초마다 통계 출력
-                    if tick_count % 10 == 0:
+                    # 5초마다 통계 출력
+                    if tick_count % 5 == 0:
                         stats.report()
 
                     # 실행 시간 체크
