@@ -143,10 +143,10 @@ def reset_environment():
             with open(reset_sql_path, "r", encoding="utf-8") as f:
                 mysql_sql = f.read()
 
-            # MySQL은 여러 문장을 세미콜론으로 구분하여 하나씩 실행
-            statements = [s.strip() for s in mysql_sql.split(';') if s.strip() and not s.strip().startswith('--')]
+            # ###SPLIT###로 구분하여 실행
+            statements = [s.strip() for s in mysql_sql.split('###SPLIT###') if s.strip()]
             for stmt in statements:
-                if stmt:
+                if stmt and not stmt.startswith('--'):
                     mysql_adapter.execute_query(stmt)
             results["mysql"] = "OK"
         except Exception as e:
@@ -160,11 +160,8 @@ def reset_environment():
             with open(reset_sql_path, "r", encoding="utf-8") as f:
                 pg_sql = f.read()
 
-            # PostgreSQL도 여러 문장을 세미콜론으로 구분하여 하나씩 실행
-            statements = [s.strip() for s in pg_sql.split(';') if s.strip() and not s.strip().startswith('--')]
-            for stmt in statements:
-                if stmt:
-                    pg_adapter.execute_query(stmt)
+            # PostgreSQL은 전체를 한 번에 실행 가능
+            pg_adapter.execute_query(pg_sql)
             results["postgres"] = "OK"
         except Exception as e:
             errors.append(f"PostgreSQL: {str(e)}")
