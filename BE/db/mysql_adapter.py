@@ -34,6 +34,30 @@ class MySQLAdapter:
                 return cur.fetchall()
             return {"affected": cur.rowcount}
 
+    def execute_multi_query(self, sql: str):
+        """
+        여러 SQL 문장을 한 번에 실행 (세미콜론으로 구분)
+        autocommit=False로 트랜잭션 처리
+        """
+        conn = pymysql.connect(
+            **self.cfg,
+            cursorclass=pymysql.cursors.DictCursor,
+            autocommit=False,  # 트랜잭션 모드
+        )
+        try:
+            with conn.cursor() as cur:
+                # 세미콜론으로 split하여 각 문장 실행
+                statements = [s.strip() for s in sql.split(';') if s.strip()]
+                for stmt in statements:
+                    cur.execute(stmt)
+                conn.commit()
+            return {"status": "OK"}
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
+
     def call_procedure(self, name: str, params: Optional[List[Any]] = None, out_count: int = 0):
         argv = list(params or [])
 

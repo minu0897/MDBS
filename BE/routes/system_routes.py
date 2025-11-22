@@ -143,11 +143,8 @@ def reset_environment():
             with open(reset_sql_path, "r", encoding="utf-8") as f:
                 mysql_sql = f.read()
 
-            # ###SPLIT###로 구분하여 실행
-            statements = [s.strip() for s in mysql_sql.split('###SPLIT###') if s.strip()]
-            for stmt in statements:
-                if stmt and not stmt.startswith('--'):
-                    mysql_adapter.execute_query(stmt)
+            # Multi-query 실행 (하나의 트랜잭션)
+            mysql_adapter.execute_multi_query(mysql_sql)
             results["mysql"] = "OK"
         except Exception as e:
             errors.append(f"MySQL: {str(e)}")

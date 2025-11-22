@@ -25,7 +25,7 @@ class OracleAdapter:
         dsn = self._normalize_dsn(self.cfg["dsn"])
         conn = oracledb.connect(user=self.cfg["user"], password=self.cfg["password"], dsn=dsn)
         try:
-            conn.callTimeout = 15000  # 쿼리 타임아웃(ms)
+            conn.callTimeout = 60000  # 쿼리 타임아웃(ms) - 60초로 증가
         except Exception:
             pass
         return conn
