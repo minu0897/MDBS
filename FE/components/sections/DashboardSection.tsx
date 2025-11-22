@@ -78,17 +78,27 @@ export default function DashboardSection({
       return
     }
 
+    if (resetting) {
+      setResetResult({ success: false, message: "Reset already in progress. Please wait." })
+      return
+    }
+
     setResetting(true)
     setResetResult(null)
 
     try {
       const API_BASE = process.env.NEXT_PUBLIC_SERVER_API_URL || "http://localhost:5000"
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 120000) // 120초 타임아웃
+
       const response = await fetch(`${API_BASE}/system/reset`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: resetPassword }),
+        signal: controller.signal,
       })
 
+      clearTimeout(timeoutId)
       const data = await response.json()
 
       if (response.ok && data.data?.success) {
@@ -102,10 +112,17 @@ export default function DashboardSection({
         })
       }
     } catch (error) {
-      setResetResult({
-        success: false,
-        message: error instanceof Error ? error.message : "Network error",
-      })
+      if (error instanceof Error && error.name === 'AbortError') {
+        setResetResult({
+          success: false,
+          message: "Reset timeout (120s). Database might be busy. Please stop RDG and try again.",
+        })
+      } else {
+        setResetResult({
+          success: false,
+          message: error instanceof Error ? error.message : "Network error",
+        })
+      }
     } finally {
       setResetting(false)
     }

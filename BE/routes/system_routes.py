@@ -138,6 +138,7 @@ def reset_environment():
 
         # MySQL 리셋
         try:
+            import pymysql
             mysql_adapter = get_adapter("mysql")
             reset_sql_path = os.path.join("sql", "mysql", "reset.data_and_sequences.sql")
             with open(reset_sql_path, "r", encoding="utf-8") as f:
@@ -146,6 +147,13 @@ def reset_environment():
             # Multi-query 실행 (하나의 트랜잭션)
             mysql_adapter.execute_multi_query(mysql_sql)
             results["mysql"] = "OK"
+        except pymysql.err.OperationalError as e:
+            if "Lock wait timeout" in str(e):
+                errors.append(f"MySQL: Tables are locked. Stop RDG first.")
+                results["mysql"] = "FAILED: Tables are locked by ongoing transactions. Stop RDG and wait 5 seconds."
+            else:
+                errors.append(f"MySQL: {str(e)}")
+                results["mysql"] = f"FAILED: {str(e)}"
         except Exception as e:
             errors.append(f"MySQL: {str(e)}")
             results["mysql"] = f"FAILED: {str(e)}"
@@ -175,6 +183,14 @@ def reset_environment():
             # OracleAdapter는 pool이 없으므로 execute_query 사용
             oracle_adapter.execute_query(oracle_sql)
             results["oracle"] = "OK"
+        except oracledb.Error as e:
+            error_obj, = e.args
+            if error_obj.code == 54:  # ORA-00054: resource busy
+                errors.append(f"Oracle: Tables are locked. Stop RDG first.")
+                results["oracle"] = "FAILED: Tables are locked by ongoing transactions. Stop RDG and wait 5 seconds."
+            else:
+                errors.append(f"Oracle: {str(e)}")
+                results["oracle"] = f"FAILED: {str(e)}"
         except Exception as e:
             errors.append(f"Oracle: {str(e)}")
             results["oracle"] = f"FAILED: {str(e)}"
