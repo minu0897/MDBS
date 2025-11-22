@@ -142,7 +142,12 @@ def reset_environment():
             reset_sql_path = os.path.join("sql", "mysql", "reset.data_and_sequences.sql")
             with open(reset_sql_path, "r", encoding="utf-8") as f:
                 mysql_sql = f.read()
-            mysql_adapter.execute_query(mysql_sql)
+
+            # MySQL은 여러 문장을 세미콜론으로 구분하여 하나씩 실행
+            statements = [s.strip() for s in mysql_sql.split(';') if s.strip() and not s.strip().startswith('--')]
+            for stmt in statements:
+                if stmt:
+                    mysql_adapter.execute_query(stmt)
             results["mysql"] = "OK"
         except Exception as e:
             errors.append(f"MySQL: {str(e)}")
@@ -154,7 +159,12 @@ def reset_environment():
             reset_sql_path = os.path.join("sql", "postgres", "reset.data_and_sequences.sql")
             with open(reset_sql_path, "r", encoding="utf-8") as f:
                 pg_sql = f.read()
-            pg_adapter.execute_query(pg_sql)
+
+            # PostgreSQL도 여러 문장을 세미콜론으로 구분하여 하나씩 실행
+            statements = [s.strip() for s in pg_sql.split(';') if s.strip() and not s.strip().startswith('--')]
+            for stmt in statements:
+                if stmt:
+                    pg_adapter.execute_query(stmt)
             results["postgres"] = "OK"
         except Exception as e:
             errors.append(f"PostgreSQL: {str(e)}")
@@ -167,15 +177,10 @@ def reset_environment():
             with open(reset_sql_path, "r", encoding="utf-8") as f:
                 oracle_sql = f.read()
 
-            # Oracle은 PL/SQL 블록이므로 특별 처리
-            conn = oracle_adapter.pool.acquire()
-            try:
-                cursor = conn.cursor()
-                cursor.execute(oracle_sql)
-                conn.commit()
-                results["oracle"] = "OK"
-            finally:
-                oracle_adapter.pool.release(conn)
+            # Oracle은 PL/SQL 블록 또는 여러 문장일 수 있음
+            # OracleAdapter는 pool이 없으므로 execute_query 사용
+            oracle_adapter.execute_query(oracle_sql)
+            results["oracle"] = "OK"
         except Exception as e:
             errors.append(f"Oracle: {str(e)}")
             results["oracle"] = f"FAILED: {str(e)}"
