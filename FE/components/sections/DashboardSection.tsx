@@ -82,7 +82,7 @@ export default function DashboardSection({
     setResetResult(null)
 
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
+      const API_BASE = process.env.NEXT_PUBLIC_SERVER_API_URL || "http://localhost:5000"
       const response = await fetch(`${API_BASE}/system/reset`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -137,8 +137,8 @@ export default function DashboardSection({
     setRdgResult(null)
 
     try {
-      // RDG는 무조건 서버에서 실행 (DOCKER_API_BASE 사용)
-      const API_BASE = process.env.NEXT_PUBLIC_DOCKER_API_URL || "http://localhost:5000"
+      // RDG는 무조건 서버에서 실행 (SERVER_API_BASE 사용)
+      const API_BASE = process.env.NEXT_PUBLIC_SERVER_API_URL || "http://localhost:5000"
 
       // Start 시에는 설정 포함, Stop 시에는 password만
       const payload = rdgAction === "start"
