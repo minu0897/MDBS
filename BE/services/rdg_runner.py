@@ -9,6 +9,8 @@ import re
 import os
 import signal
 import psutil
+import glob
+import shutil
 from pathlib import Path
 from typing import Dict, Optional
 from dataclasses import dataclass
@@ -42,18 +44,48 @@ class RDGRunner:
         self.run_script = self.scripts_dir / "run_rdg.py"
 
     def _get_latest_log_file(self) -> Path:
-        """최신 RDG 로그 파일 찾기 (rdg_v1_*.log 중 가장 최근 것)"""
-        import glob
-        log_pattern = str(self.scripts_dir / "rdg_v1_*.log")
+        """최신 RDG 로그 파일 찾기 (rdg_log_*.log 중 가장 최근 것)"""
+        log_pattern = str(self.scripts_dir / "rdg_log_*.log")
         log_files = glob.glob(log_pattern)
 
         if not log_files:
             # 로그 파일이 없으면 기본 경로 반환
-            return self.scripts_dir / "rdg_v1.log"
+            return self.scripts_dir / "rdg_log.log"
 
-        # 수정 시간 기준 최신 파일 반환
-        latest_log = max(log_files, key=lambda f: Path(f).stat().st_mtime)
+        # 생성 시간(ctime) 기준 최신 파일 반환 (수정 시간이 아닌 생성 시간)
+        # 이렇게 하면 새로 시작한 RDG의 로그 파일을 올바르게 선택
+        latest_log = max(log_files, key=lambda f: Path(f).stat().st_ctime)
         return Path(latest_log)
+
+    def _move_logs_to_temp(self):
+        """RDG 로그 파일들을 temp_log/ 폴더로 이동"""
+        try:
+            # temp_log 디렉토리 생성
+            temp_log_dir = self.scripts_dir / "temp_log"
+            temp_log_dir.mkdir(exist_ok=True)
+
+            # 모든 rdg_log_*.log 파일 찾기
+            log_pattern = str(self.scripts_dir / "rdg_log_*.log")
+            log_files = glob.glob(log_pattern)
+
+            moved_count = 0
+            for log_file in log_files:
+                try:
+                    log_path = Path(log_file)
+                    dest_path = temp_log_dir / log_path.name
+                    shutil.move(str(log_path), str(dest_path))
+                    moved_count += 1
+                    print(f"[RDG] Moved log file: {log_path.name} -> temp_log/")
+                except Exception as e:
+                    print(f"[RDG] Failed to move {log_file}: {e}")
+
+            if moved_count > 0:
+                print(f"[RDG] Total {moved_count} log files moved to temp_log/")
+            else:
+                print(f"[RDG] No log files to move")
+
+        except Exception as e:
+            print(f"[RDG] Error moving logs to temp_log: {e}")
 
     def start(self, cfg: RDGConfig):
         """RDG 프로세스 시작"""
@@ -164,6 +196,12 @@ class RDGRunner:
                     pass
         except Exception as e:
             pass
+
+        # 3. 로그 파일을 temp_log/로 이동
+        if stopped:
+            # 프로세스가 완전히 종료될 때까지 대기
+            time.sleep(0.5)
+            self._move_logs_to_temp()
 
         return stopped
 

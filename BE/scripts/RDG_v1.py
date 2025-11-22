@@ -42,9 +42,8 @@ class RDGConfig:
 
 # ==================== 로깅 설정 ====================
 def setup_logger(log_level: int = logging.INFO) -> logging.Logger:
-    """로거 설정 - 24시간마다 로그 파일 로테이션"""
-    from logging.handlers import TimedRotatingFileHandler
-    import glob
+    """로거 설정 - 타임스탬프 기반 로그 파일"""
+    from datetime import datetime
     import os
 
     logger = logging.getLogger("RDG")
@@ -55,42 +54,20 @@ def setup_logger(log_level: int = logging.INFO) -> logging.Logger:
     if logger.hasHandlers():
         logger.handlers.clear()
 
-    # 기존 로그 파일 번호 확인 (rdg_v1_1.log, rdg_v1_2.log 등)
-    log_files = glob.glob('rdg_v1_*.log')
-    if log_files:
-        # 가장 큰 번호 찾기
-        numbers = []
-        for f in log_files:
-            try:
-                num = int(f.replace('rdg_v1_', '').replace('.log', ''))
-                numbers.append(num)
-            except ValueError:
-                continue
-        next_number = max(numbers) + 1 if numbers else 1
-    else:
-        next_number = 1
+    # 타임스탬프 기반 로그 파일명: rdg_log_YYMMDD_HHMMSS.log
+    timestamp = datetime.now().strftime('%y%m%d_%H%M%S')
+    log_filename = f'rdg_log_{timestamp}.log'
 
-    log_filename = f'rdg_v1_{next_number}.log'
-
-    # 24시간마다 로테이션하는 파일 핸들러
-    # when='midnight': 자정마다 로테이션
-    # interval=1: 1일마다
-    # backupCount=30: 최대 30개 파일 보관
-    file_handler = TimedRotatingFileHandler(
+    # 파일 핸들러
+    file_handler = logging.FileHandler(
         log_filename,
-        when='midnight',
-        interval=1,
-        backupCount=30,
         encoding='utf-8'
     )
     file_handler.setLevel(logging.DEBUG)
 
-    # 로테이션 시 파일명 형식: rdg_v1_N.log.YYYY-MM-DD
-    file_handler.suffix = "%Y-%m-%d"
-
     # 콘솔 핸들러
     console_handler = logging.StreamHandler()
-    console_handler.setLevel(log_level)  # 파라미터로 받은 log_level 사용
+    console_handler.setLevel(log_level)
 
     # 포맷터
     formatter = logging.Formatter(
