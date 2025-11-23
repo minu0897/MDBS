@@ -197,8 +197,8 @@ def reset_environment():
 
         # MongoDB 리셋
         try:
-            mongo_svc = MongoTxService()
-            mongo_result = mongo_svc.reset_data()
+            from services.file_sql_service import run_mongo_file
+            mongo_result = run_mongo_file("", "reset.data_and_sequences", {})
             results["mongo"] = "OK"
         except Exception as e:
             errors.append(f"MongoDB: {str(e)}")

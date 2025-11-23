@@ -1,0 +1,40 @@
+{
+  "description": "MongoDB 데이터 초기화 - 트랜잭션 데이터 삭제 및 계정 잔액 리셋",
+  "operations": [
+    {
+      "type": "drop_collection",
+      "collection": "ledger_entries"
+    },
+    {
+      "type": "drop_collection",
+      "collection": "holds"
+    },
+    {
+      "type": "drop_collection",
+      "collection": "transactions"
+    },
+    {
+      "type": "update_many",
+      "collection": "accounts",
+      "query": {},
+      "update": {
+        "$set": {
+          "balance": 0,
+          "hold_amount": 0
+        }
+      }
+    },
+    {
+      "type": "update_many",
+      "collection": "accounts",
+      "query": {
+        "_id": { "$in": [100001, 100002, 100003, 100004, 100005] }
+      },
+      "update": {
+        "$set": {
+          "balance": 100000000
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "$group": {
+      "_id": null,
+      "balance": { "$sum": "$balance" }
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "balance": 1
+    }
+  }
+]

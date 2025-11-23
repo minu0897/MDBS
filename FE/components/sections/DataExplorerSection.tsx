@@ -129,15 +129,30 @@ export default function DataExplorerSection() {
       // 각 DBMS별로 총 잔액 조회
       for (const bank of banks) {
         try {
-          const response = await fetch(`${API_BASE}/db/file/sql`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              dbms: bank.value,
-              id: "query.accounts.all_balance",
-              params: {}
+          let response
+
+          // MongoDB는 /db/file/mongo 엔드포인트 사용
+          if (bank.value === "mongo") {
+            response = await fetch(`${API_BASE}/db/file/mongo`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                collection: "accounts",
+                id: "query.accounts.all_balance",
+                params: {}
+              })
             })
-          })
+          } else {
+            response = await fetch(`${API_BASE}/db/file/sql`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                dbms: bank.value,
+                id: "query.accounts.all_balance",
+                params: {}
+              })
+            })
+          }
 
           const result = await response.json()
 

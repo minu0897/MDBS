@@ -128,19 +128,60 @@ def _force_limit(pipeline: List[dict], limit: int) -> List[dict]:
 # ───────────────────────── Mongo 실행 ─────────────────────────
 def run_mongo_file(collection: str, qid: str, params: dict):
     """
-    파일(JSON 파이프라인) 실행 – 컬렉션은 호출자가 명시.
-    Body 예:
-      { "collection":"ACCOUNTS",
-        "id":"query.accounts.list_all",
-        "params":{"limit":100} }
+    파일(JSON) 실행 – aggregate pipeline 또는 operations 배열 지원
+
+    Aggregate 예: { "collection":"accounts", "id":"query.accounts.list_all", "params":{"limit":100} }
+    Operations 예: { "collection":"", "id":"reset.data_and_sequences", "params":{} }
     """
     path = _safe_path("mongo", qid, "json")
     txt = path.read_text(encoding="utf-8")
-    pipeline = json.loads(txt)
-
-    _validate_pipeline(pipeline)
-    lim = _clamp_int((params or {}).get("limit", 100), 1, 1000)
-    pipeline = _force_limit(pipeline, lim)
+    data = json.loads(txt)
 
     mongo = get_adapter("mongo")
-    return mongo.aggregate(collection, pipeline, maxTimeMS=3000)
+
+    # operations 형식: {"operations": [...]}
+    if isinstance(data, dict) and "operations" in data:
+        return _run_mongo_operations(mongo, data["operations"], params)
+
+    # aggregate pipeline: [{"$match": {}}, ...]
+    elif isinstance(data, list):
+        _validate_pipeline(data)
+        lim = _clamp_int((params or {}).get("limit", 100), 1, 1000)
+        pipeline = _force_limit(data, lim)
+        return mongo.aggregate(collection, pipeline, maxTimeMS=3000)
+
+    raise ValueError("Invalid MongoDB file format")
+
+def _run_mongo_operations(mongo, operations: List[dict], params: dict) -> dict:
+    """
+    MongoDB write operations 실행
+    [
+      {"type": "delete_many", "collection": "holds", "query": {}},
+      {"type": "update_many", "collection": "accounts", "query": {}, "update": {"$set": {"balance": 0}}},
+      {"type": "drop_collection", "collection": "transactions"}
+    ]
+    """
+    results = []
+    for i, op in enumerate(operations):
+        op_type = op.get("type")
+        coll = op.get("collection")
+
+        if op_type == "delete_many":
+            query = op.get("query", {})
+            count = mongo.delete_many(coll, query)
+            results.append({"operation": i, "type": op_type, "collection": coll, "deleted_count": count})
+
+        elif op_type == "update_many":
+            query = op.get("query", {})
+            update = op.get("update", {})
+            count = mongo.update_many(coll, query, update)
+            results.append({"operation": i, "type": op_type, "collection": coll, "modified_count": count})
+
+        elif op_type == "drop_collection":
+            mongo.drop_collection(coll)
+            results.append({"operation": i, "type": op_type, "collection": coll, "result": "dropped"})
+
+        else:
+            raise ValueError(f"Unsupported operation type: {op_type}")
+
+    return {"executed": len(results), "results": results}
