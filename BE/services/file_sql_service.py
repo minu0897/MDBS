@@ -190,9 +190,20 @@ def _run_mongo_operations(mongo, operations: List[dict], params: dict) -> dict:
             results.append({"operation": i, "type": op_type, "collection": coll, "deleted_count": count})
 
         elif op_type == "update_many":
-            query = _convert_to_decimal128(op.get("query", {}))
-            update = _convert_to_decimal128(op.get("update", {}))
+            original_query = op.get("query", {})
+            original_update = op.get("update", {})
+            query = _convert_to_decimal128(original_query)
+            update = _convert_to_decimal128(original_update)
+
+            print(f"[MongoDB update_many] collection={coll}")
+            print(f"  Original query: {original_query}")
+            print(f"  Converted query: {query}")
+            print(f"  Original update: {original_update}")
+            print(f"  Converted update: {update}")
+
             count = mongo.update_many(coll, query, update)
+            print(f"  Modified count: {count}")
+
             results.append({"operation": i, "type": op_type, "collection": coll, "modified_count": count})
 
         elif op_type == "drop_collection":
