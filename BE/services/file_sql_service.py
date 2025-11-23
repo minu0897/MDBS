@@ -155,13 +155,16 @@ def run_mongo_file(collection: str, qid: str, params: dict):
 def _convert_to_decimal128(obj: Any) -> Any:
     """
     딕셔너리 내의 {"$decimal": "value"} 형태를 Decimal128로 변환
+    MongoDB 연산자 ($in, $set 등)는 보존
     """
     from bson.decimal128 import Decimal128
     from decimal import Decimal
 
     if isinstance(obj, dict):
-        if "$decimal" in obj:
+        # {"$decimal": "123"} 형태만 변환 (정확히 1개 키 + $decimal)
+        if len(obj) == 1 and "$decimal" in obj:
             return Decimal128(Decimal(str(obj["$decimal"])))
+        # 일반 딕셔너리는 값만 재귀 변환 (키는 그대로 유지)
         return {k: _convert_to_decimal128(v) for k, v in obj.items()}
     elif isinstance(obj, list):
         return [_convert_to_decimal128(item) for item in obj]
