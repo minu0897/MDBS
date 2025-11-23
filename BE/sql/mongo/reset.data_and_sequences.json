@@ -19,8 +19,8 @@
       "query": {},
       "update": {
         "$set": {
-          "balance": 0,
-          "hold_amount": 0
+          "balance": {"$decimal": "0"},
+          "hold_amount": {"$decimal": "0"}
         }
       }
     },
@@ -32,7 +32,7 @@
       },
       "update": {
         "$set": {
-          "balance": 100000000
+          "balance": {"$decimal": "100000000"}
         }
       }
     }

@@ -152,12 +152,27 @@ def run_mongo_file(collection: str, qid: str, params: dict):
 
     raise ValueError("Invalid MongoDB file format")
 
+def _convert_to_decimal128(obj: Any) -> Any:
+    """
+    딕셔너리 내의 {"$decimal": "value"} 형태를 Decimal128로 변환
+    """
+    from bson.decimal128 import Decimal128
+    from decimal import Decimal
+
+    if isinstance(obj, dict):
+        if "$decimal" in obj:
+            return Decimal128(Decimal(str(obj["$decimal"])))
+        return {k: _convert_to_decimal128(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_to_decimal128(item) for item in obj]
+    return obj
+
 def _run_mongo_operations(mongo, operations: List[dict], params: dict) -> dict:
     """
     MongoDB write operations 실행
     [
       {"type": "delete_many", "collection": "holds", "query": {}},
-      {"type": "update_many", "collection": "accounts", "query": {}, "update": {"$set": {"balance": 0}}},
+      {"type": "update_many", "collection": "accounts", "query": {}, "update": {"$set": {"balance": {"$decimal": "0"}}}},
       {"type": "drop_collection", "collection": "transactions"}
     ]
     """
@@ -167,13 +182,13 @@ def _run_mongo_operations(mongo, operations: List[dict], params: dict) -> dict:
         coll = op.get("collection")
 
         if op_type == "delete_many":
-            query = op.get("query", {})
+            query = _convert_to_decimal128(op.get("query", {}))
             count = mongo.delete_many(coll, query)
             results.append({"operation": i, "type": op_type, "collection": coll, "deleted_count": count})
 
         elif op_type == "update_many":
-            query = op.get("query", {})
-            update = op.get("update", {})
+            query = _convert_to_decimal128(op.get("query", {}))
+            update = _convert_to_decimal128(op.get("update", {}))
             count = mongo.update_many(coll, query, update)
             results.append({"operation": i, "type": op_type, "collection": coll, "modified_count": count})
 
