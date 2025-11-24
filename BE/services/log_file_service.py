@@ -3,10 +3,14 @@ import os
 from pathlib import Path
 from typing import List, Dict
 
-# 두 개의 로그 디렉토리
+# 두 개의 로그 디렉토리 (상대 경로 사용)
+# __file__: BE/services/log_file_service.py
+# .parent: BE/services/
+# .parent.parent: BE/
+BASE_DIR = Path(__file__).resolve().parent.parent
 LOG_DIRS = [
-    Path("/home/kmw/MDBS/BE/scripts/temp_log"),
-    Path("/home/kmw/MDBS/BE/scripts"),
+    BASE_DIR / "scripts" / "temp_log",
+    BASE_DIR / "scripts",
 ]
 
 def get_log_files() -> List[Dict[str, any]]:

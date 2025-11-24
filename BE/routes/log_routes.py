@@ -25,8 +25,20 @@ def list_logs():
     """
     try:
         files = get_log_files()
+
+        # 디버깅: 경로 정보 로깅
+        from services.log_file_service import LOG_DIRS
+        for log_dir in LOG_DIRS:
+            print(f"[LOG] Checking directory: {log_dir} (exists: {log_dir.exists()})")
+            if log_dir.exists():
+                log_count = len(list(log_dir.glob("*.log")))
+                print(f"[LOG] Found {log_count} .log files in {log_dir}")
+
         return ok(files)
     except Exception as e:
+        print(f"[LOG] Error: {e}")
+        import traceback
+        traceback.print_exc()
         return fail(str(e), 500)
 
 @log_bp.get("/download/<filename>")
