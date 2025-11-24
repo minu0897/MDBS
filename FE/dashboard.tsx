@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   Download,
   Terminal,
+  FileText,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -24,6 +25,7 @@ import ServerControlSection from "@/components/sections/ServerControlSection"
 import QueryExecutorSection from "@/components/sections/QueryExecutorSection"
 import DataExplorerSection from "@/components/sections/DataExplorerSection"
 import PerformanceMonitorSection from "@/components/sections/PerformanceMonitorSection"
+import LogViewerSection from "@/components/sections/LogViewerSection"
 import type { ServerStates, DockerStatsResponse, DBKey, ServerStatus } from "@/lib/types"
 
 const API_BASE_server = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
@@ -326,6 +328,17 @@ export default function Dashboard() {
               Connections(구현x)
             </button>
             <button
+              onClick={() => setActiveSection("logs")}
+              className={`flex items-center w-full px-4 py-3 text-sm font-medium rounded-r-md transition-colors ${
+                activeSection === "logs"
+                  ? "text-sidebar-accent-foreground bg-sidebar-accent border-l-4 border-sidebar-accent"
+                  : "text-sidebar-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
+              }`}
+            >
+              <FileText className="mr-3 h-5 w-5" />
+              Log Viewer
+            </button>
+            <button
               onClick={() => setActiveSection("settings")}
               className={`flex items-center w-full px-4 py-3 text-sm font-medium rounded-r-md transition-colors ${
                 activeSection === "settings"
@@ -362,6 +375,8 @@ export default function Dashboard() {
                 ? "Performance Monitor"
                 : activeSection === "connections"
                 ? "Connection Manager"
+                : activeSection === "logs"
+                ? "Log Viewer"
                 : "Settings"}
             </h1>
           </div>
@@ -426,12 +441,14 @@ export default function Dashboard() {
           )}
           {activeSection === "data-explorer" && <DataExplorerSection />}
           {activeSection === "performance" && <PerformanceMonitorSection performanceData={performanceData} />}
+          {activeSection === "logs" && <LogViewerSection />}
 
           {activeSection !== "dashboard" &&
             activeSection !== "server-control" &&
             activeSection !== "query-executor" &&
             activeSection !== "data-explorer" &&
-            activeSection !== "performance" && (
+            activeSection !== "performance" &&
+            activeSection !== "logs" && (
               <div className="flex items-center justify-center h-full">
                 <Card className="w-full max-w-md bg-card border-border">
                   <CardHeader>

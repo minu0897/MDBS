@@ -170,7 +170,7 @@ class RandomDataGenerator:
 
 
         # 멱등키 생성
-        idempotency_key = src_dbms[0:1]+"->"+dst_dbms[0]+"-"+str(uuid.uuid4())
+        idempotency_key = src_dbms[0:2]+"->"+dst_dbms[0:2]+"-"+str(uuid.uuid4())
 
         # 거래 타입 결정
         if src_dbms == dst_dbms:

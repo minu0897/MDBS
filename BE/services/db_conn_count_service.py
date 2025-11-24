@@ -45,7 +45,7 @@ def get_oracle_session_count() -> Dict[str, Any]:
         # 일반 사용자도 자신의 세션 정보는 조회 가능
         result = adapter.execute_query("""
             SELECT COUNT(*) as count
-            FROM sys.v_$session
+            FROM sys.v_$session WHERE username = 'MDBS' AND type = 'USER'
         """)
         sessions = int(result[0]["count"]) if result else 0
 

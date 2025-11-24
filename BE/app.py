@@ -5,6 +5,7 @@ from routes.db_routes import db_bp
 from routes.system_routes import sys_bp
 from routes.mongo_proc_routes import mongo_bp
 from routes.rdg_routes import bp_rdg
+from routes.log_routes import log_bp
 
 import os
 
@@ -21,6 +22,7 @@ def create_app():
     app.register_blueprint(sys_bp) #url_prefi는 system_routes에서 해주고있음
     app.register_blueprint(mongo_bp, url_prefix="/mongo_proc")
     app.register_blueprint(bp_rdg, url_prefix="/rdg")
+    app.register_blueprint(log_bp)
 
     # ---- /healthz (liveness) ----
     @app.get("/healthz")

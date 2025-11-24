@@ -135,6 +135,18 @@ def run_mongo_file(collection: str, qid: str, params: dict):
     """
     path = _safe_path("mongo", qid, "json")
     txt = path.read_text(encoding="utf-8")
+
+    # 파라미터 치환 ({{param_name}} 형식)
+    if params:
+        for key, value in params.items():
+            # 문자열 값은 따옴표로 감싸고, 숫자는 그대로
+            if isinstance(value, str):
+                txt = txt.replace(f'"{{{{{key}}}}}"', f'"{value}"')
+                txt = txt.replace(f'{{{{{key}}}}}', f'"{value}"')
+            else:
+                txt = txt.replace(f'"{{{{{key}}}}}"', str(value))
+                txt = txt.replace(f'{{{{{key}}}}}', str(value))
+
     data = json.loads(txt)
 
     mongo = get_adapter("mongo")

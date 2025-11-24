@@ -53,7 +53,7 @@ export default function DataExplorerSection() {
   const features = [
     { id: "transfer-history" as FeatureType, label: "Transfer History", icon: Search },
     { id: "total-balance" as FeatureType, label: "Total Balance", icon: DollarSign },
-    { id: "transfer" as FeatureType, label: "Execute Transfer(구현x)", icon: ArrowRightLeft },
+    { id: "transfer" as FeatureType, label: "Execute Transfer", icon: ArrowRightLeft },
   ]
 
   const banks = [
@@ -71,25 +71,40 @@ export default function DataExplorerSection() {
 
     setIsSearching(true)
     try {
-      // SQL 파일 ID 결정
+      // 파일 ID 결정
       const queryId = searchCriteria === "account"
         ? "query.ledger_entries.by_account_id"
         : "query.ledger_entries.by_name"
 
       // 파라미터 구성
       const params = searchCriteria === "account"
-        ? { account_id: searchValue }
+        ? { account_id: parseInt(searchValue) }
         : { name: searchValue }
 
-      const response = await fetch(`${API_BASE}/db/file/sql`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dbms: selectedDbms,
-          id: queryId,
-          params: params
+      let response
+
+      // MongoDB는 별도 엔드포인트 사용
+      if (selectedDbms === "mongo") {
+        response = await fetch(`${API_BASE}/db/file/mongo`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            collection: "ledger_entries",
+            id: queryId,
+            params: params
+          })
         })
-      })
+      } else {
+        response = await fetch(`${API_BASE}/db/file/sql`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dbms: selectedDbms,
+            id: queryId,
+            params: params
+          })
+        })
+      }
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
@@ -197,52 +212,197 @@ export default function DataExplorerSection() {
 
     setIsTransferring(true)
     try {
-      // MongoDB 간 이체는 별도 엔드포인트 사용
-      if (senderBank === "mongo" || receiverBank === "mongo") {
-        const response = await fetch(`${API_BASE}/mongo/transfer`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sender_account: senderAccount,
-            receiver_account: receiverAccount,
-            amount: amount,
-            allow_same_db: senderBank === receiverBank
-          })
-        })
+      const srcAccountId = parseInt(senderAccount)
+      const dstAccountId = parseInt(receiverAccount)
+      const dstBank = Math.floor(dstAccountId / 100000).toString()
+      const idempotencyKey = `ui-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
-        const result = await response.json()
-        if (result.ok) {
-          alert(`이체 완료! TXN ID: ${result.data?.txn_id || 'N/A'}`)
-        } else {
-          throw new Error(result.error || "이체 실패")
-        }
+      // 내부 이체 (같은 DBMS)
+      if (senderBank === receiverBank) {
+        await executeInternalTransfer(senderBank, srcAccountId, dstAccountId, dstBank, amount, idempotencyKey)
       } else {
-        // RDB 간 이체 (MySQL, PostgreSQL, Oracle)
-        // TODO: 사용할 stored procedure 이름 확인 필요
-        // 예시: MDBS.sp_transfer 또는 transfer_between_accounts 등
-
-        alert("RDB 간 이체 기능은 stored procedure 연동이 필요합니다.")
-        // const response = await fetch(`${API_BASE}/db/proc/exec`, {
-        //   method: "POST",
-        //   headers: { "Content-Type": "application/json" },
-        //   body: JSON.stringify({
-        //     dbms: senderBank,
-        //     name: "transfer_procedure_name",
-        //     args: [senderAccount, receiverAccount, amount],
-        //     out_count: 2,
-        //     out_names: ["txn_id", "status"]
-        //   })
-        // })
+        // 외부 이체 (다른 DBMS)
+        await executeExternalTransfer(senderBank, receiverBank, srcAccountId, dstAccountId, dstBank, amount, idempotencyKey)
       }
 
+      alert(`✅ 이체 완료!\n송금: ${senderBank}(${senderAccount})\n수취: ${receiverBank}(${receiverAccount})\n금액: ₩${amount.toLocaleString()}`)
       setSenderAccount("")
       setReceiverAccount("")
       setTransferAmount("")
     } catch (error) {
       console.error("Transfer failed:", error)
-      alert(`이체 실패: ${error}`)
+      alert(`❌ 이체 실패: ${error}`)
     } finally {
       setIsTransferring(false)
+    }
+  }
+
+  // 내부 이체 처리
+  const executeInternalTransfer = async (
+    dbms: string,
+    srcAccountId: number,
+    dstAccountId: number,
+    dstBank: string,
+    amount: number,
+    idempotencyKey: string
+  ) => {
+    // Step 1: 송금 보류
+    const holdResult = await callProcedure(dbms, "remittance/hold", {
+      src_account_id: srcAccountId,
+      dst_account_id: dstAccountId,
+      dst_bank: dstBank,
+      amount: amount.toString(),
+      idempotency_key: idempotencyKey,
+      type: "1"
+    }, ["sp_remittance_hold", [srcAccountId, dstAccountId, dstBank, amount, idempotencyKey, "1"], 2, ["txn_id", "status"]])
+
+    if (!holdResult || holdResult.status !== "1") {
+      throw new Error(`송금 보류 실패: ${holdResult?.status || 'Unknown'}`)
+    }
+
+    // Step 2: 이체 확정
+    try {
+      const confirmResult = await callProcedure(dbms, "transfer/confirm/internal", {
+        idempotency_key: idempotencyKey
+      }, ["sp_transfer_confirm_internal", [idempotencyKey], 2, ["status", "result"]])
+
+      if (!confirmResult || confirmResult.status !== "2") {
+        throw new Error(`이체 확정 실패: ${confirmResult?.status || 'Unknown'}`)
+      }
+    } catch (error) {
+      // 확정 실패 시 hold 해제 시도
+      await releaseHold(dbms, idempotencyKey)
+      throw error
+    }
+  }
+
+  // 외부 이체 처리
+  const executeExternalTransfer = async (
+    srcDbms: string,
+    dstDbms: string,
+    srcAccountId: number,
+    dstAccountId: number,
+    dstBank: string,
+    amount: number,
+    idempotencyKey: string
+  ) => {
+    // Step 1: 송금 보류 (송금측 DBMS)
+    const holdResult = await callProcedure(srcDbms, "remittance/hold", {
+      src_account_id: srcAccountId,
+      dst_account_id: dstAccountId,
+      dst_bank: dstBank,
+      amount: amount.toString(),
+      idempotency_key: idempotencyKey,
+      type: "2"
+    }, ["sp_remittance_hold", [srcAccountId, dstAccountId, dstBank, amount, idempotencyKey, "2"], 2, ["txn_id", "status"]])
+
+    if (!holdResult || holdResult.status !== "1") {
+      throw new Error(`송금 보류 실패: ${holdResult?.status || 'Unknown'}`)
+    }
+
+    // Step 2: 수금 준비 (수취측 DBMS)
+    try {
+      const prepareResult = await callProcedure(dstDbms, "receive/prepare", {
+        src_account_id: srcAccountId,
+        dst_account_id: dstAccountId,
+        dst_bank: dstBank,
+        amount: amount.toString(),
+        idempotency_key: idempotencyKey,
+        type: "3"
+      }, ["sp_receive_prepare", [srcAccountId, dstAccountId, dstBank, amount, idempotencyKey, "3"], 2, ["txn_id", "status"]])
+
+      if (!prepareResult || prepareResult.status !== "1") {
+        throw new Error(`수금 준비 실패: ${prepareResult?.status || 'Unknown'}`)
+      }
+    } catch (error) {
+      await releaseHold(srcDbms, idempotencyKey)
+      throw error
+    }
+
+    // Step 3: 출금 확정 (송금측 DBMS)
+    try {
+      const debitResult = await callProcedure(srcDbms, "confirm/debit/local", {
+        idempotency_key: idempotencyKey
+      }, ["sp_confirm_debit_local", [idempotencyKey], 3, ["txn_id", "status", "result"]])
+
+      if (!debitResult || debitResult.status !== "2") {
+        throw new Error(`출금 확정 실패: ${debitResult?.status || 'Unknown'}`)
+      }
+    } catch (error) {
+      await releaseHold(srcDbms, idempotencyKey)
+      throw error
+    }
+
+    // Step 4: 입금 확정 (수취측 DBMS)
+    const creditResult = await callProcedure(dstDbms, "confirm/credit/local", {
+      idempotency_key: idempotencyKey
+    }, ["sp_confirm_credit_local", [idempotencyKey], 3, ["txn_id", "status", "result"]])
+
+    if (!creditResult || creditResult.status !== "2") {
+      throw new Error(`입금 확정 실패: ${creditResult?.status || 'Unknown'}`)
+    }
+  }
+
+  // 프로시저 호출 헬퍼 (MongoDB vs SQL)
+  const callProcedure = async (
+    dbms: string,
+    mongoPath: string,
+    mongoPayload: any,
+    sqlParams: [string, any[], number, string[]]
+  ) => {
+    if (dbms === "mongo") {
+      const response = await fetch(`${API_BASE}/mongo_proc/${mongoPath}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(mongoPayload)
+      })
+      const result = await response.json()
+      if (!result.ok) throw new Error(result.error || "MongoDB procedure failed")
+      return result.data
+    } else {
+      const [procName, args, outCount, outNames] = sqlParams
+      const payload: any = {
+        dbms: dbms,
+        name: procName,
+        args: args,
+        out_count: outCount,
+        out_names: outNames
+      }
+
+      if (dbms === "postgres") {
+        payload.mode = "func"
+      }
+
+      if (dbms === "oracle") {
+        // Oracle OUT 타입 지정
+        const outTypes = procName === "sp_remittance_hold" || procName === "sp_receive_prepare"
+          ? ["NUMBER", "VARCHAR2"]
+          : procName === "sp_transfer_confirm_internal" || procName === "sp_remittance_release"
+          ? ["VARCHAR2", "VARCHAR2"]
+          : ["NUMBER", "VARCHAR2", "VARCHAR2"]
+        payload.out_types = outTypes
+        payload.args = [...args, ...Array(outCount).fill(null)]
+      }
+
+      const response = await fetch(`${API_BASE}/db/proc/exec`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+      const result = await response.json()
+      if (!result.ok) throw new Error(result.error || "SQL procedure failed")
+      return result.data
+    }
+  }
+
+  // Hold 해제
+  const releaseHold = async (dbms: string, idempotencyKey: string) => {
+    try {
+      await callProcedure(dbms, "remittance/release", {
+        idempotency_key: idempotencyKey
+      }, ["sp_remittance_release", [idempotencyKey], 2, ["status", "result"]])
+    } catch (error) {
+      console.error("Hold 해제 실패:", error)
     }
   }
 

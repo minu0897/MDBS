@@ -1,0 +1,21 @@
+[
+  {
+    "$match": {
+      "account_id": {{account_id}}
+    }
+  },
+  {
+    "$sort": {
+      "_id": 1
+    }
+  },
+  {
+    "$project": {
+      "entry_id": { "$toString": "$_id" },
+      "txn_id": 1,
+      "account_id": 1,
+      "amount": 1,
+      "created_at": 1
+    }
+  }
+]
