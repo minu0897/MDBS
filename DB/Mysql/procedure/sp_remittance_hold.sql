@@ -45,11 +45,19 @@ PROC:BEGIN
     ON DUPLICATE KEY UPDATE txn_id = LAST_INSERT_ID(txn_id);
     SET v_txn_id = LAST_INSERT_ID();
 
-    -- 2) 출금 계좌 잠금 + 가용 금액 확인
+    -- 2) 출금 계좌 존재 확인 및 잠금 + 가용 금액 확인
     SELECT balance, hold_amount INTO v_balance, v_hold
       FROM accounts
      WHERE account_id = p_src_account_id
      FOR UPDATE;-- 조건에 맞는 ROW LOCK -> COMMIT; 시 UNLOCK
+
+    -- 계좌가 존재하지 않으면 status 6으로 return
+    IF v_balance IS NULL THEN
+        SET p_status = "6";
+        UPDATE transactions SET status = p_status , updated_at=NOW() WHERE txn_id=v_txn_id; -- status='6' 계좌없음
+        COMMIT;
+        LEAVE proc;  -- 끝
+    END IF;
 
     -- 가용 금액 확인 후 없으면 status 5로 return
     IF v_balance - v_hold < p_amount THEN

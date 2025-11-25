@@ -81,7 +81,8 @@ ALLOW_SAME_DB = os.getenv("ALLOW_SAME_DB", "True").lower() in ("true", "1", "yes
 # "DEBUG": 모든 상세 로그 출력
 # "INFO": 일반 정보 로그 출력
 # "WARNING": 경고 및 에러만 출력
-LOG_LEVEL = "INFO"
+# API 요청으로 전달된 값이 있으면 그것을 사용, 없으면 기본값 사용
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 # 로그 파일 경로
 LOG_FILE = "rdg_v1.log"

@@ -32,12 +32,19 @@ BEGIN
        FOR UPDATE;
   END;
 
-  -- 출금 계좌 잠금 + 가용금 확인
-  SELECT balance, hold_amount
-    INTO v_balance, v_hold
-    FROM accounts
-   WHERE account_id = p_src_account_id
-   FOR UPDATE;
+  -- 출금 계좌 존재 확인 및 잠금 + 가용금 확인
+  BEGIN
+    SELECT balance, hold_amount
+      INTO v_balance, v_hold
+      FROM accounts
+     WHERE account_id = p_src_account_id
+     FOR UPDATE;
+  EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+      p_status := '6'; -- 계좌없음
+      UPDATE transactions SET status = p_status WHERE txn_id = p_txn_id;
+      RETURN;
+  END;
 
   IF v_balance - v_hold < p_amount THEN
     p_status := '5'; -- 잔액부족

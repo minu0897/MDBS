@@ -63,8 +63,8 @@ class MongoTxService:
 
     # 1) 송금 보류(sp_remittance_hold 대체)
     def remittance_hold(self, body: Dict[str, Any]):
-        src       = body["src_account_id"]
-        dst       = body["dst_account_id"]
+        src       = str(body["src_account_id"])
+        dst       = str(body["dst_account_id"])
         dst_bank  = body.get("dst_bank", "")
         amount128 = _d128(body["amount"])
         amount    = _dec(body["amount"])
@@ -74,18 +74,23 @@ class MongoTxService:
 
         # txn 멱등 생성
         _idem_insert(self.TXN, {
-            "type": typ, 
+            "type": typ,
             "status": "1",
-            "src_account_id": src, 
-            "dst_account_id": dst, 
+            "src_account_id": src,
+            "dst_account_id": dst,
             "dst_bank": dst_bank,
-            "amount": amount128, 
+            "amount": amount128,
             "idempotency_key": idem,
             "created_at": c_at
         }, {"idempotency_key": idem})
 
         tx = self.TXN.find_one({"idempotency_key": idem}, {"_id": 1})
         txn_id = tx["_id"]
+
+        # 송금 계좌 존재 확인
+        if self.ACC.count_documents({"_id": src}) == 0:
+            self.TXN.update_one({"_id": txn_id}, {"$set": {"status": "6"}})  # 계좌 없음
+            return {"txn_id": str(txn_id), "status": "6"}
 
         # (balance - hold_amount) >= amount 조건부로 hold_amount 증가
         res = self.ACC.update_one(
@@ -108,8 +113,8 @@ class MongoTxService:
 
     # 2) 수금 준비(sp_receive_prepare 대체)
     def receive_prepare(self, body: Dict[str, Any]):
-        src       = body["src_account_id"]
-        dst       = body["dst_account_id"]
+        src       = str(body["src_account_id"])
+        dst       = str(body["dst_account_id"])
         dst_bank  = body.get("dst_bank", "")
         amount128 = _d128(body["amount"])
         idem      = body["idempotency_key"]
@@ -141,7 +146,7 @@ class MongoTxService:
             return {"status": "1", "result": "TX_NOT_FOUND"}
 
         txn_id = tx["_id"]
-        src    = tx["src_account_id"]
+        src    = str(tx["src_account_id"])
         amt128 = tx["amount"] if isinstance(tx["amount"], Decimal128) else _d128(tx["amount"])
         amt    = amt128.to_decimal()
         c_at = datetime.utcnow()
@@ -165,7 +170,7 @@ class MongoTxService:
         # 분개(음수) 멱등
         _idem_insert(self.LEDGER,
             {"txn_id": txn_id, "account_id": src, "amount": -amt128,"created_at": c_at},
-            {"txn_id": txn_id, "account_id": src, "amount": -amt,"created_at": c_at}
+            {"txn_id": txn_id, "account_id": src, "amount": -amt128}
         )
 
         self.HOLD.update_one({"idempotency_key": idem}, {"$set": {"status": "2"}})
@@ -181,13 +186,13 @@ class MongoTxService:
             return {"status": "1", "result": "TX_NOT_FOUND"}
 
         txn_id = tx["_id"]
-        dst    = tx["dst_account_id"]
+        dst    = str(tx["dst_account_id"])
         amt128 = tx["amount"] if isinstance(tx["amount"], Decimal128) else _d128(tx["amount"])
         amt    = amt128.to_decimal()
         c_at = datetime.utcnow()
 
         # 이미 분개 있으면 멱등 OK
-        if self.LEDGER.find_one({"txn_id": txn_id, "account_id": dst, "amount": amt}):
+        if self.LEDGER.find_one({"txn_id": txn_id, "account_id": dst, "amount": amt128}):
             self.TXN.update_one({"_id": txn_id}, {"$set": {"status": "2"}})
             return {"txn_id": str(txn_id), "status": "2", "result": "ALREADY_POSTED"}
 
@@ -197,7 +202,7 @@ class MongoTxService:
         # 분개(양수) 멱등
         _idem_insert(self.LEDGER,
             {"txn_id": txn_id, "account_id": dst, "amount": amt128,"created_at": c_at},
-            {"txn_id": txn_id, "account_id": dst, "amount": amt,"created_at": c_at}
+            {"txn_id": txn_id, "account_id": dst, "amount": amt128}
         )
 
         self.TXN.update_one({"_id": txn_id}, {"$set": {"status": "2"}})
@@ -212,8 +217,8 @@ class MongoTxService:
             return {"status": "1", "result": "TX_NOT_FOUND"}
 
         txn_id = tx["_id"]
-        src    = tx["src_account_id"]
-        dst    = tx["dst_account_id"]
+        src    = str(tx["src_account_id"])
+        dst    = str(tx["dst_account_id"])
         amt128 = tx["amount"] if isinstance(tx["amount"], Decimal128) else _d128(tx["amount"])
         amt    = amt128.to_decimal()
         c_at = datetime.utcnow()
@@ -245,11 +250,11 @@ class MongoTxService:
         # 분개 멱등 (음수/양수)
         _idem_insert(self.LEDGER,
             {"txn_id": txn_id, "account_id": src, "amount": -amt128,"created_at": c_at},
-            {"txn_id": txn_id, "account_id": src, "amount": -amt,"created_at": c_at}
+            {"txn_id": txn_id, "account_id": src, "amount": -amt128}
         )
         _idem_insert(self.LEDGER,
             {"txn_id": txn_id, "account_id": dst, "amount":  amt128,"created_at": c_at},
-            {"txn_id": txn_id, "account_id": dst, "amount":  amt,"created_at": c_at}
+            {"txn_id": txn_id, "account_id": dst, "amount":  amt128}
         )
 
         self.TXN.update_one({"_id": txn_id}, {"$set": {"status": "2"}})
@@ -264,7 +269,7 @@ class MongoTxService:
             return {"status": "1", "result": "TX_NOT_FOUND"}
 
         txn_id = tx["_id"]
-        src = tx["src_account_id"]
+        src = str(tx["src_account_id"])
         amt128 = tx["amount"] if isinstance(tx["amount"], Decimal128) else _d128(tx["amount"])
         amt = amt128.to_decimal()
 
@@ -295,10 +300,13 @@ class MongoTxService:
 
         Args:
             test_account_ids: 초기 잔액(100,000,000)을 설정할 계정 ID 리스트
-                            기본값: [100001, 100101] (MongoDB 테스트 계정)
+                            기본값: ["100001", "100101"] (MongoDB 테스트 계정)
         """
         if test_account_ids is None:
-            test_account_ids = [100001, 100101]
+            test_account_ids = ["100001", "100101"]
+
+        # 숫자로 들어온 경우 문자열로 변환
+        test_account_ids = [str(aid) for aid in test_account_ids]
 
         # 1. 트랜잭션 데이터 삭제 (drop으로 빠르게)
         self.LEDGER.drop()

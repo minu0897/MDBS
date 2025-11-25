@@ -58,7 +58,8 @@ export default function DashboardSection({
     min_amount: 1000,
     max_amount: 100000,
     allow_same_db: true,
-    active_dbms: ["mysql", "postgres", "oracle"] as string[]
+    active_dbms: ["mysql", "postgres", "oracle", "mongo"] as string[],
+    log_level: "INFO" as "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL"
   })
 
   // 시간 포맷 헬퍼 함수
@@ -716,6 +717,28 @@ export default function DashboardSection({
                 >
                   Allow Same DB Transfers
                 </label>
+              </div>
+
+              {/* Log Level */}
+              <div className="space-y-2">
+                <label htmlFor="log_level" className="text-sm font-medium">
+                  Log Level
+                </label>
+                <select
+                  id="log_level"
+                  value={rdgConfig.log_level}
+                  onChange={(e) => setRdgConfig({...rdgConfig, log_level: e.target.value as "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL"})}
+                  className="w-full px-3 py-2 border border-border rounded-md bg-background text-card-foreground"
+                >
+                  <option value="DEBUG">DEBUG - All detailed logs</option>
+                  <option value="INFO">INFO - General information (default)</option>
+                  <option value="WARNING">WARNING - Warnings and errors only</option>
+                  <option value="ERROR">ERROR - Errors only</option>
+                  <option value="CRITICAL">CRITICAL - Critical errors only</option>
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  DEBUG level shows all API calls, responses, and detailed transfer flow
+                </p>
               </div>
             </>
           )}

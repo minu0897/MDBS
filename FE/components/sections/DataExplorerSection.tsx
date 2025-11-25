@@ -21,6 +21,13 @@ type TransferHistory = {
   receiver_account: string
   amount: number
   timestamp: string
+  type?: "debit" | "credit"  // 출금(-) 또는 입금(+)
+}
+
+type AccountBalance = {
+  account_id: number
+  name: string
+  balance: number
 }
 
 type BankBalance = {
@@ -37,6 +44,7 @@ export default function DataExplorerSection() {
   const [searchValue, setSearchValue] = useState("")
   const [searchResults, setSearchResults] = useState<TransferHistory[]>([])
   const [isSearching, setIsSearching] = useState(false)
+  const [accountBalance, setAccountBalance] = useState<AccountBalance | null>(null)
 
   // Total Balance State
   const [bankBalances, setBankBalances] = useState<BankBalance[]>([])
@@ -114,25 +122,82 @@ export default function DataExplorerSection() {
 
       if (result.ok && Array.isArray(result.data)) {
         // LEDGER_ENTRIES를 TransferHistory 형태로 변환
-        const transformed = result.data.map((entry: any, index: number) => ({
-          id: entry.ENTRY_ID || entry.entry_id || index,
-          sender_bank: selectedDbms.toUpperCase(),
-          sender_account: entry.ACCOUNT_ID || entry.account_id || "N/A",
-          receiver_bank: "-",
-          receiver_account: "-",
-          amount: Math.abs(entry.AMOUNT || entry.amount || 0),
-          timestamp: entry.CREATED_AT || entry.created_at || ""
-        }))
+        const transformed = result.data.map((entry: any, index: number) => {
+          const rawAmount = entry.AMOUNT || entry.amount || 0
+          return {
+            id: entry.ENTRY_ID || entry.entry_id || index,
+            sender_bank: selectedDbms.toUpperCase(),
+            sender_account: entry.ACCOUNT_ID || entry.account_id || "N/A",
+            receiver_bank: "-",
+            receiver_account: "-",
+            amount: Math.abs(rawAmount),
+            timestamp: entry.CREATED_AT || entry.created_at || "",
+            type: rawAmount < 0 ? "debit" as const : "credit" as const
+          }
+        })
         setSearchResults(transformed)
       } else {
         setSearchResults([])
+      }
+
+      // 계좌 잔액 조회 (account 기준 검색일 때만)
+      if (searchCriteria === "account") {
+        const accountId = parseInt(searchValue)
+        await fetchAccountBalance(selectedDbms, accountId)
+      } else {
+        setAccountBalance(null)
       }
     } catch (error) {
       console.error("Search failed:", error)
       alert(`조회 실패: ${error}`)
       setSearchResults([])
+      setAccountBalance(null)
     } finally {
       setIsSearching(false)
+    }
+  }
+
+  const fetchAccountBalance = async (dbms: string, accountId: number) => {
+    try {
+      let response
+
+      if (dbms === "mongo") {
+        response = await fetch(`${API_BASE}/db/file/mongo`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            collection: "accounts",
+            id: "query.accounts.by_account_id",
+            params: { account_id: accountId.toString() }
+          })
+        })
+      } else {
+        response = await fetch(`${API_BASE}/db/file/sql`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dbms: dbms,
+            id: "query.accounts.by_account_id",
+            params: { account_id: accountId }
+          })
+        })
+      }
+
+      const result = await response.json()
+
+      if (result.ok && Array.isArray(result.data) && result.data.length > 0) {
+        const account = result.data[0]
+        setAccountBalance({
+          account_id: account.ACCOUNT_ID || account.account_id || account._id,
+          name: account.NAME || account.name || "N/A",
+          balance: parseFloat(account.BALANCE || account.balance || 0)
+        })
+      } else {
+        setAccountBalance(null)
+      }
+    } catch (error) {
+      console.error("Failed to fetch account balance:", error)
+      setAccountBalance(null)
     }
   }
 
@@ -215,7 +280,12 @@ export default function DataExplorerSection() {
       const srcAccountId = parseInt(senderAccount)
       const dstAccountId = parseInt(receiverAccount)
       const dstBank = Math.floor(dstAccountId / 100000).toString()
-      const idempotencyKey = `ui-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+      // RDG와 동일한 UUID 생성 방식: {src}->{dst}-{uuid}
+      const srcPrefix = senderBank.substring(0, 2)
+      const dstPrefix = receiverBank.substring(0, 2)
+      const uuid = crypto.randomUUID()
+      const idempotencyKey = `${srcPrefix}->${dstPrefix}-${uuid}`
 
       // 내부 이체 (같은 DBMS)
       if (senderBank === receiverBank) {
@@ -237,7 +307,7 @@ export default function DataExplorerSection() {
     }
   }
 
-  // 내부 이체 처리
+  // 내부 이체 처리 (RDG와 동일한 로직)
   const executeInternalTransfer = async (
     dbms: string,
     srcAccountId: number,
@@ -257,26 +327,26 @@ export default function DataExplorerSection() {
     }, ["sp_remittance_hold", [srcAccountId, dstAccountId, dstBank, amount, idempotencyKey, "1"], 2, ["txn_id", "status"]])
 
     if (!holdResult || holdResult.status !== "1") {
+      // 타임아웃(null) 시 hold 해제 시도
+      if (!holdResult) {
+        await releaseHold(dbms, idempotencyKey)
+      }
       throw new Error(`송금 보류 실패: ${holdResult?.status || 'Unknown'}`)
     }
 
     // Step 2: 이체 확정
-    try {
-      const confirmResult = await callProcedure(dbms, "transfer/confirm/internal", {
-        idempotency_key: idempotencyKey
-      }, ["sp_transfer_confirm_internal", [idempotencyKey], 2, ["status", "result"]])
+    const confirmResult = await callProcedure(dbms, "transfer/confirm/internal", {
+      idempotency_key: idempotencyKey
+    }, ["sp_transfer_confirm_internal", [idempotencyKey], 2, ["status", "result"]])
 
-      if (!confirmResult || confirmResult.status !== "2") {
-        throw new Error(`이체 확정 실패: ${confirmResult?.status || 'Unknown'}`)
-      }
-    } catch (error) {
-      // 확정 실패 시 hold 해제 시도
+    if (!confirmResult || confirmResult.status !== "2") {
+      // 확정 실패 시 hold 해제
       await releaseHold(dbms, idempotencyKey)
-      throw error
+      throw new Error(`이체 확정 실패: ${confirmResult?.status || 'Unknown'}`)
     }
   }
 
-  // 외부 이체 처리
+  // 외부 이체 처리 (RDG와 동일한 로직)
   const executeExternalTransfer = async (
     srcDbms: string,
     dstDbms: string,
@@ -297,40 +367,36 @@ export default function DataExplorerSection() {
     }, ["sp_remittance_hold", [srcAccountId, dstAccountId, dstBank, amount, idempotencyKey, "2"], 2, ["txn_id", "status"]])
 
     if (!holdResult || holdResult.status !== "1") {
+      // 타임아웃(null) 시 hold 해제 시도
+      if (!holdResult) {
+        await releaseHold(srcDbms, idempotencyKey)
+      }
       throw new Error(`송금 보류 실패: ${holdResult?.status || 'Unknown'}`)
     }
 
     // Step 2: 수금 준비 (수취측 DBMS)
-    try {
-      const prepareResult = await callProcedure(dstDbms, "receive/prepare", {
-        src_account_id: srcAccountId,
-        dst_account_id: dstAccountId,
-        dst_bank: dstBank,
-        amount: amount.toString(),
-        idempotency_key: idempotencyKey,
-        type: "3"
-      }, ["sp_receive_prepare", [srcAccountId, dstAccountId, dstBank, amount, idempotencyKey, "3"], 2, ["txn_id", "status"]])
+    const prepareResult = await callProcedure(dstDbms, "receive/prepare", {
+      src_account_id: srcAccountId,
+      dst_account_id: dstAccountId,
+      dst_bank: dstBank,
+      amount: amount.toString(),
+      idempotency_key: idempotencyKey,
+      type: "3"
+    }, ["sp_receive_prepare", [srcAccountId, dstAccountId, dstBank, amount, idempotencyKey, "3"], 2, ["txn_id", "status"]])
 
-      if (!prepareResult || prepareResult.status !== "1") {
-        throw new Error(`수금 준비 실패: ${prepareResult?.status || 'Unknown'}`)
-      }
-    } catch (error) {
+    if (!prepareResult || prepareResult.status !== "1") {
       await releaseHold(srcDbms, idempotencyKey)
-      throw error
+      throw new Error(`수금 준비 실패: ${prepareResult?.status || 'Unknown'}`)
     }
 
     // Step 3: 출금 확정 (송금측 DBMS)
-    try {
-      const debitResult = await callProcedure(srcDbms, "confirm/debit/local", {
-        idempotency_key: idempotencyKey
-      }, ["sp_confirm_debit_local", [idempotencyKey], 3, ["txn_id", "status", "result"]])
+    const debitResult = await callProcedure(srcDbms, "confirm/debit/local", {
+      idempotency_key: idempotencyKey
+    }, ["sp_confirm_debit_local", [idempotencyKey], 3, ["txn_id", "status", "result"]])
 
-      if (!debitResult || debitResult.status !== "2") {
-        throw new Error(`출금 확정 실패: ${debitResult?.status || 'Unknown'}`)
-      }
-    } catch (error) {
+    if (!debitResult || debitResult.status !== "2") {
       await releaseHold(srcDbms, idempotencyKey)
-      throw error
+      throw new Error(`출금 확정 실패: ${debitResult?.status || 'Unknown'}`)
     }
 
     // Step 4: 입금 확정 (수취측 DBMS)
@@ -339,6 +405,7 @@ export default function DataExplorerSection() {
     }, ["sp_confirm_credit_local", [idempotencyKey], 3, ["txn_id", "status", "result"]])
 
     if (!creditResult || creditResult.status !== "2") {
+      // 입금 실패 시에는 hold 해제하지 않음 (이미 출금 완료되었으므로)
       throw new Error(`입금 확정 실패: ${creditResult?.status || 'Unknown'}`)
     }
   }
@@ -515,6 +582,28 @@ export default function DataExplorerSection() {
             </CardContent>
           </Card>
 
+          {/* 계좌 잔액 표시 */}
+          {accountBalance && (
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="text-card-foreground">Account Balance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                  <div>
+                    <div className="text-sm text-muted-foreground">Account ID</div>
+                    <div className="text-lg font-semibold text-card-foreground">{accountBalance.account_id}</div>
+                    <div className="text-sm text-muted-foreground mt-1">{accountBalance.name}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-muted-foreground">Current Balance</div>
+                    <div className="text-2xl font-bold text-card-foreground">₩{accountBalance.balance.toLocaleString()}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="bg-card border-border">
             <CardHeader>
               <CardTitle className="text-card-foreground">Search Results</CardTitle>
@@ -526,8 +615,8 @@ export default function DataExplorerSection() {
                     <thead>
                       <tr className="border-b border-border">
                         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">ID</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Sender</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Receiver</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Type</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Account</th>
                         <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Amount</th>
                         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Timestamp</th>
                       </tr>
@@ -537,19 +626,20 @@ export default function DataExplorerSection() {
                         <tr key={record.id} className="border-b border-border hover:bg-muted/50">
                           <td className="py-3 px-4 text-sm text-card-foreground">{record.id}</td>
                           <td className="py-3 px-4">
+                            {record.type === "debit" ? (
+                              <Badge variant="destructive" className="bg-red-500">출금</Badge>
+                            ) : (
+                              <Badge variant="default" className="bg-green-500">입금</Badge>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
                             <div className="text-sm">
                               <Badge variant="secondary" className="mb-1">{record.sender_bank}</Badge>
                               <div className="text-muted-foreground">{record.sender_account}</div>
                             </div>
                           </td>
-                          <td className="py-3 px-4">
-                            <div className="text-sm">
-                              <Badge variant="secondary" className="mb-1">{record.receiver_bank}</Badge>
-                              <div className="text-muted-foreground">{record.receiver_account}</div>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-right text-sm font-medium text-card-foreground">
-                            ₩{record.amount.toLocaleString()}
+                          <td className={`py-3 px-4 text-right text-sm font-medium ${record.type === "debit" ? "text-red-500" : "text-green-500"}`}>
+                            {record.type === "debit" ? "-" : "+"}₩{record.amount.toLocaleString()}
                           </td>
                           <td className="py-3 px-4 text-sm text-muted-foreground">{record.timestamp}</td>
                         </tr>

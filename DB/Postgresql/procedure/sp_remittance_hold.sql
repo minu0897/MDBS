@@ -26,12 +26,22 @@ BEGIN
   DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key
   RETURNING txn_id INTO p_txn_id;
 
-  -- 2) 가용금 확인
+  -- 2) 계좌 존재 확인 및 가용금 확인
   SELECT balance, hold_amount
     INTO v_balance, v_hold
     FROM accounts
    WHERE account_id = p_src_account_id
    FOR UPDATE;
+
+  -- 계좌가 존재하지 않으면 status 6으로 return
+  IF v_balance IS NULL THEN
+    p_status := '6'; -- 계좌없음
+    UPDATE transactions SET status = p_status WHERE txn_id = p_txn_id;
+
+    -- 결과 한 행을 실제로 내보내기
+    RETURN QUERY SELECT p_txn_id, p_status;
+    RETURN;
+  END IF;
 
   IF v_balance - v_hold < p_amount THEN
     p_status := '5'; -- 잔액부족
