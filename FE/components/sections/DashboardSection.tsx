@@ -288,8 +288,8 @@ export default function DashboardSection({
                   </div>
                   <Button
                     size="sm"
-                    variant="secondary"
-                    className="w-full h-8 text-xs"
+                    variant="outline"
+                    className="w-full h-8 text-xs bg-yellow-50 hover:bg-yellow-100 border-yellow-300 text-yellow-700 hover:text-yellow-800"
                     onClick={() => onServerAction(server, "restart")}
                     disabled={state.status === "offline"}
                   >

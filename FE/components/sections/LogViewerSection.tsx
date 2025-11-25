@@ -149,7 +149,7 @@ export default function LogViewerSection() {
                         </span>
                       </td>
                       <td className="py-3 px-4">
-                        <Badge variant="secondary" className="font-mono text-xs">
+                        <Badge variant="secondary" className="font-mono text-xs bg-blue-100 text-blue-700 border-blue-300">
                           {formatFileSize(file.size)}
                         </Badge>
                       </td>

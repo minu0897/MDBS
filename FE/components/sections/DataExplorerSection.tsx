@@ -40,7 +40,6 @@ export default function DataExplorerSection() {
 
   // Transfer History Search State
   const [selectedDbms, setSelectedDbms] = useState("")
-  const [searchCriteria, setSearchCriteria] = useState<SearchCriteria>("account")
   const [searchValue, setSearchValue] = useState("")
   const [searchResults, setSearchResults] = useState<TransferHistory[]>([])
   const [isSearching, setIsSearching] = useState(false)
@@ -79,15 +78,9 @@ export default function DataExplorerSection() {
 
     setIsSearching(true)
     try {
-      // 파일 ID 결정
-      const queryId = searchCriteria === "account"
-        ? "query.ledger_entries.by_account_id"
-        : "query.ledger_entries.by_name"
-
-      // 파라미터 구성
-      const params = searchCriteria === "account"
-        ? { account_id: parseInt(searchValue) }
-        : { name: searchValue }
+      // Name으로만 검색 (account 제거)
+      const queryId = "query.ledger_entries.by_name"
+      const params = { name: searchValue }
 
       let response
 
@@ -140,13 +133,8 @@ export default function DataExplorerSection() {
         setSearchResults([])
       }
 
-      // 계좌 잔액 조회 (account 기준 검색일 때만)
-      if (searchCriteria === "account") {
-        const accountId = parseInt(searchValue)
-        await fetchAccountBalance(selectedDbms, accountId)
-      } else {
-        setAccountBalance(null)
-      }
+      // Account balance는 더 이상 조회하지 않음
+      setAccountBalance(null)
     } catch (error) {
       console.error("Search failed:", error)
       alert(`조회 실패: ${error}`)
@@ -511,11 +499,11 @@ export default function DataExplorerSection() {
           <Card className="bg-card border-border">
             <CardHeader>
               <CardTitle className="text-card-foreground">Transfer History Search</CardTitle>
-              <CardDescription>Search transfer records by DBMS, account number, or name</CardDescription>
+              <CardDescription>Search transfer records by DBMS and account name</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-card-foreground mb-2 block">
                       DBMS
@@ -536,24 +524,10 @@ export default function DataExplorerSection() {
 
                   <div>
                     <label className="text-sm font-medium text-card-foreground mb-2 block">
-                      Search By
-                    </label>
-                    <select
-                      value={searchCriteria}
-                      onChange={(e) => setSearchCriteria(e.target.value as SearchCriteria)}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground"
-                    >
-                      <option value="account">Account Number</option>
-                      <option value="name">Account Name</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-card-foreground mb-2 block">
-                      Search Value
+                      Account Name
                     </label>
                     <Input
-                      placeholder={`Enter ${searchCriteria === "account" ? "account number" : "name"}...`}
+                      placeholder="Enter account name..."
                       value={searchValue}
                       onChange={(e) => setSearchValue(e.target.value)}
                       className="bg-input border-border"
